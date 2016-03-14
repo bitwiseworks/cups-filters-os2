@@ -30,6 +30,11 @@
 #include <stdlib.h>
 #include <signal.h>
 
+#ifdef __OS2__
+#include <sys/socket.h>
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
+
 int kidgeneration = 0;
 
 struct process {

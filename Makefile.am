@@ -25,7 +25,7 @@ EXTRA_DIST = \
 # Backends
 # ========
 pkgbackenddir = $(CUPS_SERVERBIN)/backend
-pkgbackend_PROGRAMS = parallel serial beh implicitclass
+pkgbackend_PROGRAMS = parallel beh implicitclass
 
 check_PROGRAMS = test1284
 # We need ieee1284 up and running.
@@ -412,11 +412,11 @@ pdftoopvp_SOURCES = \
 	filter/pdftoopvp/OPVPOutputDev.h \
 	filter/pdftoopvp/pdftoopvp.cxx
 pdftoopvp_CFLAGS = \
+	$(POPPLER_CFLAGS) \
 	$(CUPS_CFLAGS) \
 	$(FREETYPE_CFLAGS) \
 	$(FONTCONFIG_CFLAGS) \
 	$(LIBPNG_CFLAGS) \
-	$(POPPLER_CFLAGS) \
 	-I$(srcdir)/filter/pdftoopvp/oprs \
 	-I$(srcdir)/filter/pdftoopvp/opvp
 pdftoopvp_CXXFLAGS = $(pdftoopvp_CFLAGS)
@@ -531,10 +531,10 @@ bannertopdf_SOURCES = \
 	fontembed/sfnt.h
 EXTRA_bannertopdf_SOURCES = filter/getline.c
 bannertopdf_CFLAGS = \
+	$(POPPLER_CFLAGS) \
 	$(CUPS_CFLAGS) \
 	$(LIBJPEG_CFLAGS) \
 	$(LIBPNG_CFLAGS) \
-	$(POPPLER_CFLAGS) \
 	$(TIFF_CFLAGS) \
 	$(FONTCONFIG_CFLAGS) \
 	-I$(srcdir)/fontembed/
@@ -666,9 +666,9 @@ pdftoijs_SOURCES = \
 	filter/pdftoijs.cxx \
 	filter/PDFError.h
 pdftoijs_CFLAGS = \
+	$(POPPLER_CFLAGS) \
 	$(CUPS_CFLAGS) \
-	$(IJS_CFLAGS) \
-	$(POPPLER_CFLAGS)
+	$(IJS_CFLAGS)
 pdftoijs_CXXFLAGS = $(pdftoijs_CFLAGS)
 pdftoijs_LDADD = \
 	$(CUPS_LIBS) \
@@ -697,11 +697,11 @@ pdftoraster_SOURCES = \
 	filter/pdftoraster.cxx \
 	filter/PDFError.h
 pdftoraster_CFLAGS = \
+	$(POPPLER_CFLAGS) \
 	$(CUPS_CFLAGS) \
 	$(LCMS_CFLAGS) \
 	$(LIBJPEG_CFLAGS) \
 	$(LIBPNG_CFLAGS) \
-	$(POPPLER_CFLAGS) \
 	$(TIFF_CFLAGS) \
 	-I$(srcdir)/cupsfilters/
 pdftoraster_CXXFLAGS = $(pdftoraster_CFLAGS)
@@ -802,8 +802,10 @@ $(cups_notifier_sources): utils/org.cups.cupsd.Notifier.xml
 	    --generate-c-code cups-notifier \
 	    utils/org.cups.cupsd.Notifier.xml
 
+if BUILD_DBUS
 sbin_PROGRAMS = \
 	cups-browsed
+endif
 cups_browsed_SOURCES = \
 	utils/cups-browsed.c
 nodist_cups_browsed_SOURCES = \
@@ -835,7 +837,9 @@ endif
 EXTRA_DIST += utils/cups-browsed.in \
 	$(man_MANS) \
 	utils/org.cups.cupsd.Notifier.xml
+if BUILD_DBUS
 BUILT_SOURCES = $(cups_notifier_sources)
+endif
 CLEANFILES = $(BUILT_SOURCES)
 
 # ===

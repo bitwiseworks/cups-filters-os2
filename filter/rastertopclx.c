@@ -31,6 +31,9 @@
 #include "pcl-common.h"
 #include <signal.h>
 
+#ifdef __OS2__
+#include <sys/fcntl.h>
+#endif
 
 /*
  * Output modes...

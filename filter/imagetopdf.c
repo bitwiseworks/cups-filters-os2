@@ -1665,6 +1665,9 @@ main(int  argc,				/* I - Number of command-line arguments */
   }
 #endif
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
   cupsImageClose(img);
   ppdClose(ppd);
 

@@ -37,6 +37,10 @@
 
 #define MAX_CHECK_COMMENT_LINES	20
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
+
 /*
  * Type definitions
  */
@@ -999,6 +1003,9 @@ main(int  argc,				/* I - Number of command-line args */
 	*/
 	while ((bytes = cupsFileRead(fp, buffer, sizeof(buffer))) > 0)
 	  fwrite(buffer, 1, bytes, stdout);
+#ifdef __OS2__
+        fflush(stdout);
+#endif
       }
       else
       {
@@ -1270,6 +1277,9 @@ main(int  argc,				/* I - Number of command-line args */
 	  */
 	  while ((bytes = cupsFileRead(fp, buffer, sizeof(buffer))) > 0)
 	    fwrite(buffer, 1, bytes, stdout);
+#ifdef __OS2__
+          fflush(stdout);
+#endif
 	}
       }
 

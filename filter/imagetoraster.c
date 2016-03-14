@@ -125,6 +125,9 @@ static void	format_YMCK(cups_page_header2_t *header, unsigned char *row, int y, 
 static void	make_lut(cups_ib_t *, int, float, float);
 static int	raster_cb(cups_page_header2_t *header, int preferred_bits);
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * 'main()' - Main entry...

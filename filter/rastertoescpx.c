@@ -33,6 +33,9 @@
 #include <string.h>
 #include <ctype.h>
 
+#ifdef __OS2__
+#include <sys/fcntl.h>
+#endif
 
 /*
  * Softweave data...

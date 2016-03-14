@@ -57,6 +57,10 @@ MIT Open Source License  -  http://www.opensource.org/
 #define CUPSDATA "/usr/share/cups"
 #endif
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
+
 typedef enum {
   GS_DOC_TYPE_PDF,
   GS_DOC_TYPE_PS,

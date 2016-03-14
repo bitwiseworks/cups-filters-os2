@@ -332,7 +332,7 @@ if test x$enable_ldap != xno; then
 
 fi
 
-PKG_CHECK_MODULES(GLIB, [glib-2.0 >= 2.30.2])
+PKG_CHECK_MODULES(GLIB, [glib-2.0 >= 2.25.15])
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
