@@ -366,6 +366,9 @@ main(int  argc,				/* I - Number of command-line args */
     fprintf(stderr, "DEBUG: pdftops - copying to temp print file \"%s\"\n",
             tempfile);
 
+#ifdef __OS2__
+    setmode(fileno(stdin), O_BINARY);
+#endif
     while ((bytes = fread(buffer, 1, sizeof(buffer), stdin)) > 0)
       bytes = write(fd, buffer, bytes);
 
@@ -1003,9 +1006,6 @@ main(int  argc,				/* I - Number of command-line args */
 	*/
 	while ((bytes = cupsFileRead(fp, buffer, sizeof(buffer))) > 0)
 	  fwrite(buffer, 1, bytes, stdout);
-#ifdef __OS2__
-        fflush(stdout);
-#endif
       }
       else
       {

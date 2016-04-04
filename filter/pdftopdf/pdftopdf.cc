@@ -21,6 +21,12 @@
 #include "pdftopdf_jcl.h"
 
 #include <stdarg.h>
+
+#ifdef __OS2__
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 static void error(const char *fmt,...) // {{{
 {
   va_list ap;
@@ -678,6 +684,9 @@ FILE *copy_stdin_to_temp() // {{{
   // remove name
   unlink(buf);
 
+#ifdef __OS2__
+  setmode(fileno(stdin), O_BINARY);
+#endif
   // copy stdin to the tmp file
   while ( (n=read(0,buf,BUFSIZ)) > 0) {
     if (write(fd,buf,n) != n) {

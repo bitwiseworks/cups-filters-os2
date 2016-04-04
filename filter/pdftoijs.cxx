@@ -53,6 +53,11 @@ extern "C" {
 #include <vector>
 #include <string>
 
+#ifdef __OS2__
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 #define MAX_CHECK_COMMENT_LINES	20
 
 namespace {
@@ -316,6 +321,9 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
+#ifdef __OS2__
+    setmode(fileno(stdin), O_BINARY);
+#endif
     /* copy stdin to the tmp file */
     while ((n = read(0,buf,BUFSIZ)) > 0) {
       if (write(fd,buf,n) != n) {

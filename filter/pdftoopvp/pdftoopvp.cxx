@@ -30,6 +30,11 @@
 #include <cups/ppd.h>
 #include "OPVPError.h"
 
+#ifdef __OS2__
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 #define MMPERINCH (25.4)
 
 static int resolution = 300;
@@ -646,7 +651,9 @@ exit(0);
       exitCode = 2;
       goto err0;
     }
-
+#ifdef __OS2__
+    setmode(fileno(stdin), O_BINARY);
+#endif
     /* check JCL */
     while (fgets(buf,sizeof(buf)-1,stdin) != NULL
         && strncmp(buf,"%PDF",4) != 0) {

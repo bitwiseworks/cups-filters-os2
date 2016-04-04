@@ -512,6 +512,9 @@ static int generate_banner_pdf(banner_t *banner,
     if (copies > 1)
         pdf_duplicate_page(doc, 1, copies);
 
+#ifdef __OS2__
+    setmode(fileno(stdout), O_BINARY);
+#endif
     pdf_write(doc, stdout);
 #ifdef __OS2__
     fflush(stdout);

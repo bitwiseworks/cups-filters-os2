@@ -25,6 +25,10 @@
 #include <math.h>
 #include <ctype.h>
 
+#ifdef __OS2__
+#include <fcntl.h>
+#endif
+
 #if CUPS_VERSION_MAJOR < 1 \
   || (CUPS_VERSION_MAJOR == 1 && CUPS_VERSION_MINOR < 2)
 #ifndef CUPS_1_1
@@ -700,6 +704,10 @@ main(int  argc,				/* I - Number of command-line arguments */
 
   setbuf(stderr, NULL);
 
+#ifdef __OS2__
+  setmode(fileno(stdin), O_BINARY);
+  setmode(fileno(stdout), O_BINARY);
+#endif
  /*
   * Check command-line...
   */
