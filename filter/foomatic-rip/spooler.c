@@ -257,7 +257,11 @@ int configfile_find_option(const char *configfile, const char *key, char *dest, 
 
     dest[0] = '\0';
 
+#ifdef __OS2__
+    if (!(fh = fopen(configfile, "rb")))
+#else
     if (!(fh = fopen(configfile, "r")))
+#endif
         return 0;
 
     while (fgets(line, 1024, fh)) {

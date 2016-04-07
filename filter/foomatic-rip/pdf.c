@@ -291,7 +291,11 @@ int print_pdf(FILE *s,
             return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
         }
 
+#ifdef __OS2__
+        tmpfile = fdopen(fd, "rb+");
+#else
         tmpfile = fdopen(fd, "r+");
+#endif
         copy_file(tmpfile, stdin, alreadyread, len);
         fclose(tmpfile);
 

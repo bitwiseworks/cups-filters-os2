@@ -83,7 +83,11 @@ int main(int argc,char **argv)
                           EMB_C_FORCE_MULTIBYTE|
                           EMB_C_TAKE_FONTFILE);
 
+#ifdef __OS2__
+  FILE *f=fopen("test.pdf","wb");
+#else
   FILE *f=fopen("test.pdf","w");
+#endif
   assert(f);
   int xref[100],xrefpos=3;
   int stream_len;

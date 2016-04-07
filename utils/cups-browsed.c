@@ -1948,7 +1948,11 @@ record_default_printer(const char *printer, int local) {
   if (printer == NULL || strlen(printer) == 0)
     return invalidate_default_printer(local);
 
+#ifdef __OS2__
+  fp = fopen(filename, "wb+");
+#else
   fp = fopen(filename, "w+");
+#endif
   if (fp == NULL) {
     debug_printf("cups-browsed: ERROR: Failed creating file %s\n",
 		 filename);
@@ -1970,7 +1974,11 @@ retrieve_default_printer(int local) {
   char *p, buf[1024];
   int n;
 
+#ifdef __OS2__
+  fp = fopen(filename, "rb");
+#else
   fp = fopen(filename, "r");
+#endif
   if (fp == NULL) {
     debug_printf("cups-browsed: Failed reading file %s\n",
 		 filename);
@@ -2054,7 +2062,11 @@ record_printer_options(const char *printer) {
 	       uri);
   response = cupsDoRequest(CUPS_HTTP_DEFAULT, request, resource);
 
+#ifdef __OS2__
+  fp = fopen(filename, "wb+");
+#else
   fp = fopen(filename, "w+");
+#endif
   if (fp == NULL) {
     debug_printf("cups-browsed: ERROR: Failed creating file %s\n",
 		 filename);
@@ -2135,7 +2147,11 @@ retrieve_printer_options(const char *printer) {
 	       printer, filename);
 
   /* Open the file with the saved option settings for this print queue */
+#ifdef __OS2__
+  fp = fopen(filename, "rb");
+#else
   fp = fopen(filename, "r");
+#endif
   if (fp == NULL) {
     debug_printf("cups-browsed: Failed reading file %s, probably no options recorded yet\n",
 		 filename);
@@ -2540,7 +2556,11 @@ on_printer_state_changed (CupsNotifier *object,
 	 implicitclass backend will pick it up */
       snprintf(filename, sizeof(filename), IMPLICIT_CLASS_DEST_HOST_FILE,
 	       printer);
+#ifdef __OS2__
+      fp = fopen(filename, "wb+");
+#else
       fp = fopen(filename, "w+");
+#endif
       if (fp == NULL) {
 	debug_printf("cups-browsed: ERROR: Failed creating file %s\n",
 		     filename);

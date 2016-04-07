@@ -981,6 +981,10 @@ main(int  argc,				/* I - Number of command-line args */
       close(pstops_pipe[0]);
       close(pstops_pipe[1]);
 
+#ifdef __OS2__
+      setmode(fileno(stdin), O_BINARY);
+      setmode(fileno(stdout), O_BINARY);
+#endif
       fp = cupsFileStdin();
 
       if (renderer == ACROREAD)

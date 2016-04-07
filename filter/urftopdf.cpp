@@ -41,6 +41,11 @@
 
 #include "unirast.h"
 
+#ifdef __OS2__
+#include <io.h>
+#include <sys/fcntl.h>
+#endif
+
 #define DEFAULT_PDF_UNIT 72   // 1/72 inch
 
 #define PROGRAM "urftopdf"
@@ -424,6 +429,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: %s <job> <user> <job name> <copies> <option> [file]\n", argv[0]);
         return 1;
     }
+
+#ifdef __OS2__
+/* stdin might be used when no file name is provided as argv */
+    setmode(fileno(stdin), O_BINARY);
+#endif
 
     if(argc > 6)
     {

@@ -1566,7 +1566,11 @@ void read_ppd_file(const char *filename)
     param_t *param;
     icc_mapping_entry_t *entry;
 
+#ifdef __OS2__
+    fh = fopen(filename, "rb");
+#else
     fh = fopen(filename, "r");
+#endif
     if (!fh) {
         _log("error opening %s\n", filename);
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);

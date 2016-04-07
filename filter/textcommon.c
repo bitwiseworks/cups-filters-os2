@@ -23,6 +23,9 @@
 #include "textcommon.h"
 #include <limits.h>
 
+#ifdef __OS2__
+#include <sys/fcntl.h>
+#endif
 
 /*
  * Globals...
@@ -514,6 +517,10 @@ TextMain(const char *name,	/* I - Name of filter */
     return (1);
   }
 
+#ifdef __OS2__
+/* stdin might be used when no file name is provided as argv */
+    setmode(fileno(stdin), O_BINARY);
+#endif
  /*
   * If we have 7 arguments, print the file named on the command-line.
   * Otherwise, send stdin instead...

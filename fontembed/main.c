@@ -88,7 +88,11 @@ void example_write_fontdescr(OTF_FILE *otf,const char *outfile) // {{{
   int outlen=0; // TODO
 // TODO
   if (outfile) {
+#ifdef __OS2__
+    FILE *f=fopen(outfile,"wb");
+#else
     FILE *f=fopen(outfile,"w");
+#endif
     if (!f) {
       fprintf(stderr,"Opening \"%s\" for writing failed: %s\n",outfile, strerror(errno));
       assert(0);

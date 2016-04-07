@@ -1776,6 +1776,10 @@ main(int  argc,				/* I - Number of command-line arguments */
     return (1);
   }
 
+#ifdef __OS2__
+/* stdin might be used when no file name is provided as argv */
+    setmode(fileno(stdin), O_BINARY);
+#endif
   num_options = cupsParseOptions(argv[5], 0, &options);
 
  /*
@@ -1807,7 +1811,11 @@ main(int  argc,				/* I - Number of command-line arguments */
 
   if (argc == 7)
   {
+#ifdef __OS2__
+    if ((fd = open(argv[6], O_RDONLY | O_BINARY)) == -1)
+#else
     if ((fd = open(argv[6], O_RDONLY)) == -1)
+#endif
     {
       perror("ERROR: Unable to open raster file");
       return (1);

@@ -37,6 +37,10 @@
 
 #include <arpa/inet.h>   // ntohl
 
+#ifdef __OS2__
+#include <io.h>
+#endif
+
 #include <vector>
 #include <qpdf/QPDF.hh>
 #include <qpdf/QPDFWriter.hh>
@@ -1001,6 +1005,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
+#ifdef __OS2__
+/* stdin might be used when no file name is provided as argv */
+    setmode(fileno(stdin), O_BINARY);
+#endif
     num_options = cupsParseOptions(argv[5], 0, &options);  
 
     /* support the CUPS "cm-calibration" option */ 

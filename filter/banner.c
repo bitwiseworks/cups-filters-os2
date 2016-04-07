@@ -133,7 +133,11 @@ banner_t * banner_new_from_file(const char *filename,
 
     if (!strcmp(filename, "-"))
         f = stdin;
+#ifdef __OS2__
+    else if (!(f = fopen(filename, "rb"))) {
+#else
     else if (!(f = fopen(filename, "r"))) {
+#endif
         perror("Error opening banner file");
         goto out;
     }

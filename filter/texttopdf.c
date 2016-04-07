@@ -377,7 +377,11 @@ WriteProlog(const char *title,		/* I - Title of job */
   {
     snprintf(filename, sizeof(filename), "%s/charsets/pdf.%s", datadir, charset);
 
+#ifdef __OS2__
+    if ((fp = fopen(filename, "rb")) == NULL)
+#else
     if ((fp = fopen(filename, "r")) == NULL)
+#endif
     {
      /*
       * Can't open charset file!

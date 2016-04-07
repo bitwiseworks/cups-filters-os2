@@ -56,7 +56,11 @@ int main(int argc,char **argv)
 //                          EMB_C_FORCE_MULTIBYTE| // not yet...
                           EMB_C_TAKE_FONTFILE);
 
+#ifdef __OS2__
+  FILE *f=fopen("test.ps","wb");
+#else
   FILE *f=fopen("test.ps","w");
+#endif
   assert(f);
 
   fprintf(f,"%%!PS-Adobe-2.0\n");

@@ -11,7 +11,11 @@ static std::string load_file(const char *filename) // {{{
     throw std::invalid_argument("NULL filename not allowed");
   }
 
+#ifdef __OS2__
+  FILE *f=fopen(filename,"rb");
+#else
   FILE *f=fopen(filename,"r");
+#endif
   if (!f) {
     throw std::runtime_error(std::string("file ") + filename + " could not be opened");
   }

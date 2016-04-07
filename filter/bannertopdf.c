@@ -512,9 +512,6 @@ static int generate_banner_pdf(banner_t *banner,
     if (copies > 1)
         pdf_duplicate_page(doc, 1, copies);
 
-#ifdef __OS2__
-    setmode(fileno(stdout), O_BINARY);
-#endif
     pdf_write(doc, stdout);
 #ifdef __OS2__
     fflush(stdout);
@@ -532,6 +529,13 @@ int main(int argc, char *argv[])
     cups_option_t *options;
     ppd_file_t *ppd;
     int ret;
+
+#ifdef __OS2__
+/* stdout is used in generate_banner_pdf()
+ * stdin might be used in banner_new_from_file() */
+    setmode(fileno(stdout), O_BINARY);
+    setmode(fileno(stdin), O_BINARY);
+#endif
 
     if (argc < 6) {
         fprintf(stderr,

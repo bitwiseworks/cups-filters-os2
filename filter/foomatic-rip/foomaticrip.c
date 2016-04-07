@@ -45,6 +45,10 @@
 #include <pwd.h>
 #include <cupsfilters/colormanager.h>
 
+#ifdef __OS2__
+#include <sys/fcntl.h>
+#endif
+
 /* Logging */
 FILE* logh = NULL;
 
@@ -565,7 +569,11 @@ int print_file(const char *filename, int convert)
     if (!strcasecmp(filename, "<STDIN>"))
         file = stdin;
     else {
+#ifdef __OS2__
+        file = fopen(filename, "rb");
+#else
         file = fopen(filename, "r");
+#endif
         if (!file) {
             _log("Could not open \"%s\" for reading\n", filename);
             return 0;
@@ -615,7 +623,11 @@ int print_file(const char *filename, int convert)
 		        _log("Could not create temporary file: %s\n", strerror(errno));
 		        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 		    }
+#ifdef __OS2__
+		    tmpfile = fdopen(fd, "rb+");
+#else
 		    tmpfile = fdopen(fd, "r+");
+#endif
 		    copy_file(tmpfile, stdin, buf, n);
 		    fclose(tmpfile);
 		    
@@ -733,6 +745,11 @@ int main(int argc, char** argv)
         list_free(arglist);
         return 0;
     }
+
+#ifdef __OS2__
+/* stdin might be used in print_file() */
+    setmode(fileno(stdin), O_BINARY);
+#endif
 
     filelist = create_dstr();
     job = create_job();
