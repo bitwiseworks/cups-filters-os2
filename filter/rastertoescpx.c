@@ -1776,10 +1776,6 @@ main(int  argc,				/* I - Number of command-line arguments */
     return (1);
   }
 
-#ifdef __OS2__
-/* stdin might be used when no file name is provided as argv */
-    setmode(fileno(stdin), O_BINARY);
-#endif
   num_options = cupsParseOptions(argv[5], 0, &options);
 
  /*

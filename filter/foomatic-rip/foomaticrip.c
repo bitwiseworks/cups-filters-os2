@@ -45,10 +45,6 @@
 #include <pwd.h>
 #include <cupsfilters/colormanager.h>
 
-#ifdef __OS2__
-#include <sys/fcntl.h>
-#endif
-
 /* Logging */
 FILE* logh = NULL;
 
@@ -745,11 +741,6 @@ int main(int argc, char** argv)
         list_free(arglist);
         return 0;
     }
-
-#ifdef __OS2__
-/* stdin might be used in print_file() */
-    setmode(fileno(stdin), O_BINARY);
-#endif
 
     filelist = create_dstr();
     job = create_job();

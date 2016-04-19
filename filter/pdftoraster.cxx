@@ -92,10 +92,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <lcms2.h>
 #endif
 
-#ifdef __OS2__
-#include <fcntl.h>
-#endif
-
 #define MAX_CHECK_COMMENT_LINES	20
 #define MAX_BYTES_PER_PIXEL 32
 
@@ -1967,10 +1963,6 @@ int main(int argc, char *argv[]) {
       pdfError(-1,const_cast<char *>("Can't create temporary file"));
       exit(1);
     }
-
-#ifdef __OS2__
-    setmode(fileno(stdin), O_BINARY);
-#endif
 
     /* copy stdin to the tmp file */
     while ((n = read(0,buf,BUFSIZ)) > 0) {

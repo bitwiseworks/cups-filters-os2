@@ -530,13 +530,6 @@ int main(int argc, char *argv[])
     ppd_file_t *ppd;
     int ret;
 
-#ifdef __OS2__
-/* stdout is used in generate_banner_pdf()
- * stdin might be used in banner_new_from_file() */
-    setmode(fileno(stdout), O_BINARY);
-    setmode(fileno(stdin), O_BINARY);
-#endif
-
     if (argc < 6) {
         fprintf(stderr,
                 "Usage: %s job-id user job-title nr-copies options [file]\n",
