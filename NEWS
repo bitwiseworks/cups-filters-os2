@@ -1,5 +1,466 @@
-NEWS - OpenPrinting CUPS Filters v1.8.2 - 2016-02-11
-----------------------------------------------------
+NEWS - OpenPrinting CUPS Filters v1.13.3 - 2017-01-18
+-----------------------------------------------------
+
+CHANGES IN V1.13.3
+
+	- libcupsfilters: When auto-generating PPD files added support
+	  for passing through JPEG input to printers which understand
+	  JPEG. This is also done in CUPS-generated PPDs (Debian bug
+	  #851499).
+	- libcupsfilters: Added the "output-bin" option support from
+	  CUPS' PPD generator to our PPD generator (CUPS Issue #4938).
+	- cups-browsed: Make support for printers with IPv6 IP address
+	  work. Both link-local and regular addresses work.
+
+CHANGES IN V1.13.2
+
+	- cupsfilters.drv: Corrected cupsFilter entry for the "Generic
+	  IPP Everywhere Printer".
+	- driverless: Fixes on the man page (Debian bug #849075).
+	- driverless: Do not error-exit (non-zero status) when run by
+	  CUPS as backend or PPD generator when no driverless printer
+	  is found or Avahi not running. When run from thr command
+	  line, exit status is the same as of ippfind.
+	- imagetoraster: Removed (incomplete) PWG Raster support. For
+	  PWG Raster output we let the rastertopwg filter from CUPS do
+	  the finalization (mainly adding white pixels at the borders
+	  to get a full-page bitmap).
+	- imagetoraster: Fixed several bugs in the calculation of the
+          page geometry (Debian bug #849380).
+	- libcupsfilters: If the IPP-polled printer has the
+	  "sides-supported" attribute, determine the need of a
+	  "Duplex" option solely whether the attribute has a
+	  "two-sided-long-edge" choice and ignore the "duplex"
+	  parameter of the ppdCreateFromIPP() function call. This lets
+	  the more precise information coming from the IPP query
+	  always be preferred against information from the Bonjour
+	  record.
+	- driverless: When listing printers let the device ID contain
+	  "AppleRaster" (for Apple Raster printers) and "PWGRaster"
+	  (for IPP Everywhere printers) in the "CMD" field.
+	- driverless: Added "-T 3" to the ippfind command line. This
+	  makes ippfind search the Bonjour broadcasts for up to 3
+	  seconds when searching for IPP printers, raising the
+	  reliability in finding all of them (Debian bug #848712).
+
+CHANGES IN V1.13.1
+
+	- cups-browsed: Avoid erroring out when restarting after a
+	  crash (with generated queues not deleted due to the crash)
+	  and the configuration option
+	  CreateRemoteCUPSPrinterQueues=No being set.
+	- cups-browsed: If CUPS is stopped while cups-browsed is
+          running and there are queue for IPP network printers (not
+          remote CUPS queues) on restart of CUPS the still existing
+          local CUPS queue is not correctly re-connected with
+          cups-browsed and therefore gets removed after a
+          timeout. This should be fixed after a clean-up of
+          re-connecting with remaining queues from a previous session
+          (Debian bug #848223).
+	- cups-browsed: Generated queues did not get removed on
+          shutdown (Debian bug #848167).
+	- libcupsfilters: Let PPD generator for driverless printing
+	  suppress page sizes which the printer reports more than
+	  once (CUPS Issue #4933).
+	- driverless, libcupsfilters: Make "driverless list" output
+	  and output of driverless as CUPS backend in discovery mode
+	  add the word "driverless" to its output, to make it easier
+	  to set up driverless printers with printer setup tools.
+	  Made the NickName of the generated PPDs also match with the
+	  "driverless list" output.
+
+CHANGES IN V1.13.0
+
+	- cups-browsed: Use the httpGetAddr() only with CUPS 2.0.x or
+	  newer, as older CUPS versions do not provide it (Bug #1381).
+	- cups-browsed: Minor corrections in the handling of the data
+	  records of the discovered printers.
+	- rastertopdf, urftopdf: As with libcupsimage from CUPS 2.2.2
+	  on rastertopdf also understands Apple Raster and much better
+	  than urftopdf does, use rastertopdf for Apple Raster
+	  (image/urf) input files then. Also allow for manually
+	  choosing by the ./configure command line.
+	- driverless: Added a CUPS backend mode to the driverless
+	  utility. Running as a CUPS backend in discovery mode it
+	  lists the IPP URIs of the suitable printers in printer setup
+	  tools and in "lpinfo -v", as conneting via IPP is required
+	  for driverless printing.
+
+CHANGES IN V1.12.0
+
+	- cups-browsed: Added new "CreateRemoteCUPSPrinterQueues"
+	  directive to cups-browsed.conf, which allows to decide
+	  whether to auto-create local print queues for shared CUPS
+	  queues on remote machines. This way one can also set up
+	  servers which only create queues for IPP network printers.
+	- driverless: Added new /usr/lib/cups/driver/driverless
+	  utility to make CUPS auto-generate PPD files for printers
+	  designed for driverless use (IPP Everywhere, Apple Raster)
+	  when they are set up with a printer setup tool. This gives
+	  transparency to set up these printers with legacy printer
+	  setup tools. This utility is also linked to /ustr/bin to
+	  manually generate PPDs via command line.
+	- libcupsfilters, cups-browsed: Moved the PPD generator for
+	  IPP network printers from cups-browsed to libcupsfilters, so
+	  that it can also be used by other utilities.
+	- cups-browsed: When auto-generating a PPD set the cost values
+	  in the filter lines to give the highest priority to PDF,
+	  then PWG Raster, Apple Raster, PCL-XL, PostScript, PCL 5c/e.
+	- cups-browsed: Synced the PPD generator with the one of CUPS,
+	  giving the best possible support for IPP Everywhere and
+	  AirPrint printers. Especially support for more media types
+	  and for finishing units got added. Also support for more
+	  different ways to represent the printer capabilities via
+	  IPP attributes got added.
+	- cups-browsed: Added support for auto setup of IPP printers
+	  understanding the Apple Raster input data format (.urf, on
+	  AirPrint printers), only if CUPS 2.2.2 is used, which can
+	  generate this format via its rastertopwg filter.
+	- cups-browsed: Added new "NewIPPPrinterQueuesShared"
+	  directive to cups-browsed.conf, which allows to decide
+	  whether the auto-created local print queue for a newly
+	  discovered IPP network printer will be shared or not. For
+	  printers discovered earlier, cups-browsed remembers the
+	  previous setting.
+	- cups-browsed: If a user changes the printer-is-shared bit of
+	  an auto-created print queue for an IPP network printer (not
+	  for a remote CUPS queue), record this fact and recover the
+	  change when creating this queue in the next session.
+	- cups-browsed: For automatic creation of print queues for IPP
+	  network printers also allow only creating queues for IPP
+	  Everywhere printers, only for Apple Raster printers, or for
+	  both printer types designed for driverless printing and not
+	  only for all suitable printers, configurable via the
+	  CreateIPPPrinterQueues directive in cups-browsed.conf.
+
+CHANGES IN V1.11.6
+
+	- pdftops: Do not default to simply "pdftops" when calling the
+	  Poppler pdftops utility, as the $PATH of CUPS when running
+	  filters/backends starts with /usr/lib/cups/filter/ and then
+	  pdftops would call itself (Bug #1380).
+
+CHANGES IN V1.11.5
+
+	- cups-browsed: Fixed several typos in the documentation (Bug
+	  #1378).
+	- gstoraster, mupdftoraster, pdftops, sys5ippprinter: Use
+	  execvp() and execvpe() to call programs so that the $PATH
+	  environment variable gets used to find the programs (Bug
+	  #1378).
+	- build system: Several fixes, especially to make it work when
+	  cross-compiling or using a build server (Bug #1378).
+	- cups-browsed: Silenced a warning.
+	- cups-browsed: For remote CUPS queues with a dot in their
+	  name no local queue got created (Bug #1379).
+	- pdftopdf: Do the page logging also for IPP Everywhere
+	  printers which use the PWG Raster data format as the
+	  ...toraster filters being the last filter then do not log.
+	- gstoraster, pdftoraster: Let filters generate PWG Raster if
+          the environment variable FINAL_CONTENT_TYPE is set to
+          image/pwg-raster, make sure full-page bitmaps are generated
+          in PWG_raster mode, and added mime conversion rules for
+          direct PWG Raster output.
+	- cups-browsed: Corrected checking of the PDLs of an IPP network
+	  printer. Now PCL 5c/e printers (not HP inkjets) should get
+	  recognized correctly.
+	- texttopdf: Added missing NULL check to avoid a segfault when
+	  texttopdf does not find a suitable (monospace TTF) font.
+	- foomatic-rip: Replace old manpage macro calls from
+	  foomatic-filters 3.0.2-20050114.
+	- cups-browsed: Allow changing BrowseInterval and
+	  BrowseTimeout via cups-browsed.conf, as it was formerly with
+	  CUPS (Debian bug #794655).
+	- pdftopdf: Count the actual output pages also if the
+	  number-up option is not used, to correctly find out whether
+	  we have an even or odd number of pages, even if the
+	  page-ranges option is used. This is needed to correctly
+	  decide whether for duplex printing a blank page has to be
+	  added (Bug #1377).
+
+CHANGES IN V1.11.4
+
+	- gstoraster: Allow Ghostscript to use the center-of-pixel
+	  method instead of the PostScript-standard any-part-of-pixel
+	  method when rendering filled paths. This improves the
+	  graphics output quality of low-resolution printers like
+	  label printers, for example to assure readability of bar
+	  codes (Bug #1373).
+	- cups-browsed: Fixes to avoid unneeded calls of
+	  handle_cups_queues() and even infinite loops (Possible fix
+	  for bug #1376). Also make sure that queues left over from
+	  the previous cups-browsed session are integrated correctly.
+
+CHANGES IN V1.11.3
+
+	- cups-browsed: If a queue is not only discovered via Bonjour
+	  but also via legacy CUPS or LDAP, prefer the Bonjour record
+	  as it provides more information and there is also a defined
+	  cancellation broadcast.
+	- cups-browsed: Let PPD options saved in the last session also
+	  get applied to generated PPDs for IPP network printers.
+	- cups-browsed: Make sure that saved PPD options do not get
+	  lost if for some reason the PPD file cannot be loaded in a
+	  new cups-browsed session (or the loaded PPD file is
+	  different).  This is done by holding a copy of the settings
+	  in the remote printer data structure.
+	- cups-browsed: When saving option settings, remove
+	  backslashes added when the settings are read out via IPP
+	  request. Otherwise the backslashes would double with each
+	  session of cups-browsed.
+	- implicitclass: Do not let the job get immediately retried on
+	  failure to send it out to the remote CUPS printer. By
+	  repeating to send the job to an unavailable server so
+	  quickly, cups-browsed gets bombed with requests and hangs on
+	  shutdown.
+	- cups-browsed: Shortened timeouts of HTTP connections and IPP
+	  requests to 3 seconds amd of IPP requests to remote CUPS
+	  servers to 2 seconds. For local IPP requests always use the
+	  connection once created via http_connect_local(). Also call
+	  g_main_context_wakeup(NULL) after each
+	  g_main_loop_quit(gmainloop) call. These measures should
+	  reduce long hangs of cups-browsed on shutdown when a CUPS
+	  server got unavailable.
+	- cups-browsed: Do not mark remote printers discovered via
+	  legacy CUPS broadcasts as disappeared right from the
+	  beginning to implement the browse timeout. Instead manage
+	  their expiring by introducing a flag which marks them as
+	  CUPS legacy printers. Printers with disappeared status are
+	  considered invalid in some situations, especially when
+	  clusterin equally-named remote printers (Bug #1374).
+	- cups-browsed: When we have remote CUPS printers, we use the
+	  implicitclass backend and a local copy of the remote PPD
+	  file already if we have only a single remote printer with
+	  this queue name. This simplifies the management of remote
+	  CUPS printers and also we do not hassle with using a remote
+	  PPD file. Now one can change PPD option defaults with
+	  printer setup tools or the lpadmin command and they get
+	  preserved in the next cups-browsed sessions.
+	- if we are using the implicitclass backend CUPS does not make
+	  the server's PPD file available on the client any more. To
+	  fix this, we download the PPD file when creating an
+	  implictclass:... queue and apply it to the queue. This way
+	  the options of the printer(s) are always available for
+	  enumeration, especially in print dialogs (Bug #1372). We
+	  modify the local copy setting any options saved from the
+	  previous session and inhibiting local execution of filters
+	  (as the driver for the remote printer is not necessarily
+	  available locally).
+	- cups-browsed: Added flag to inhibit auto-backup of option
+	  settings by the on_printer_modified() notification handler
+	  during print queue setup and removal.
+	- cups-browsed: Let the printer_record() function always
+	  return the master record for the printer name and not an
+	  arbitrary duplicate.
+	- cups-browsed: Fixes in the functionality for saving option
+	  settings: Make sure to not save the same option twice with
+	  different values, do not save the "printer-is-shared" option
+	  (errors out when re-applying option in the next session).
+	- cups-browsed: Treat discovered printers correctly also if
+	  they use a non-standard port, even if several CUPS daemons
+	  are running on the same server but on different ports. This
+	  also improves the support of a sandboxed printing stack.
+	- cups-browsed: Close http connections opened for polling
+	  properties of IPP network printers, to fix a possible memory
+	  leak.
+	- cups-browsed: Cleaned up HTTP access to local and remote
+	  CUPS servers and IPP printers, to assure that the local CUPS
+	  daemon is always accessed the same (user-defined) way
+	  (domain socket/localhost:port). This especially prevents
+	  cups-browwsed hanging on shutdown (Debian bug #832637).
+	- cups-browsed: Fixed clustering equally-named queues of
+	  different remote servers, to assure to have one master
+	  referencing to all duplicates and not a daisy chain of
+	  duplicate references.
+
+CHANGES IN V1.11.2
+
+	- cups-browsed: Allow turning off the use of CUPS' domain
+	  socket via cups-browsed.conf.
+	- foomatic-rip: When run as regular CUPS filter use preferably
+	  /etc/cups/foomatic-rip.conf (or whereever the CUPS
+	  configuration files reside, according to the CUPS_SERVERROOT
+	  environment variable) as configuration file. This way we can
+	  more easily run the printing stack in a sandbox.
+	- foomatic-rip: When run as regular CUPS filter, read the PPD
+	  through CUPS and get the print queue name by environment
+	  variable.
+	- bannertopdf, foomatic-rip, gstoraster, mupdftoraster,
+	  pdftoopvp, pdftoraster: Do not use build-time hard-coded
+	  paths, but always the paths from the environment variables
+	  which CUPS sets when calling its filters. This is needed to
+	  run the printing stack in a sandbox.
+
+CHANGES IN V1.11.1
+
+	- mupdftoraster: Lowered the priority (raised the cost value)
+	  in the cupsfilters-mupdf.convs file so that in a full
+	  cups-filters installation MuPDF is not prioritized.
+
+CHANGES IN V1.11.0
+
+	- pdftops: Added support for MuPDF as PDF renderer. MuPDF can
+	  be selected by the "pdftops-renderer=mupdf" option.
+	- rastertops: Removed unneeded page logging.
+	- rastertops: Fixed DSC comments, some were only preceded by
+	  a single '%' instead of a double "%%".
+	- gstoraster, pdftops, foomatic-rip: Use -dNOMEDIAATTRS when
+	  calling Ghostscript. This way Ghostscript does not try to
+	  match media sizes with internal lists.
+	- Build system: Allow building cups-filters without Poppler
+	  (--disable-poppler in ./configure command line) This skips
+	  the build of pdftoraster, bannertopdf, pdftoijs, and
+	  pdftoopvp and the installation of these filters and their
+	  auxiliary files. With this cups-filters can be easily
+	  installed on mobile/appliance systems with MuPDF as the only
+	  PDF interpreter.
+	- mupdftoraster: Added filter to support MuPDF as PDF
+	  interpreter. MuPDF is a lightweight PDF interpreter
+	  especially interesting for mobile systems and
+	  appliances. Thanks to Pranjal Bhor for contributing this as
+	  part of his Google Summer of Code project.
+	- gstoraster: Fix setting of width and height of the page in
+	  pixels when there is no Resolution option in the PPD.
+	- cups-browsed, implicitclass: Avoid the use of files for the
+	  communication between cups-browsed and the load-balancing
+	  backend implicitclass. Instead of in a file, cups-brwsed
+	  stores the destination server name in an option (which CUPS
+	  saves in printers.conf) which the implicitclass backend
+	  reads via IPP. This not only makes it easier to run
+	  cups-filters in a sandbox, but it is also better in terms of
+	  system security.
+	- cups-browsed: Allow configuring where the files produced by
+	  cups-browsed will get stored. This makes it easier to run
+	  cups-filters in a sandbox.
+        - beh: Fixed printing multiple copies with beh (Ubuntu bug
+          #1605514).
+	- cups-browsed: Fixed several memory leaks, especially when
+	  using IPP requests and DNS-SD TXT record look-ups. Thanks to
+	  Ivo Straka for finding them with Valgrind and supplying
+	  patches to fix them (Bug #1365, Bug #1368, Ubuntu bug
+	  #1203276).
+	- libcupsfilters: Added missing "#include <cups/ppd.h>" to
+	  make sure that the package builds on all systems (Bug
+	  #1366).
+
+CHANGES IN V1.10.0
+
+	- texttotext: Added new filter for text-only printers written
+	  in C, to use the CUPS library to access the print queue's
+	  PPD file, with a lot of options to fit practically all
+	  printer models amd paper sizes, support for CUPS' page
+	  management options, and support for configuring the print
+	  queue and controlling the options by the PPD file. The PPD
+	  is now generated on-the-fly by cupsfilters.drv.
+	- textonly: Removed the old script-based filter and its PPD
+	  for text-only printers.
+	- rastertops: Added new filter to turn PWG Raster into
+	  PostScript, in preparation for MuPDF support. Thanks to
+	  Pranjal Bhor for contributing this as part of his Google
+	  Summer of Code project.
+	- gstoraster, gstopxl, gstopdf, pstopdf: Integrated
+	  functionality of script-based filters pstopdf and gstopxl
+	  into gstoraster filter as script-based filters cannot access
+	  the print queue's PPD file with current CUPS due to change
+	  of PPD file permissions.  To make gstoraster always produce
+	  the correct output format (CUPS/PWG Raster, PDF, PCL-XL) it
+	  is called via new wrapper scripts (gstopdf, gstopxl) which
+	  set an environment variable telling the format. The old
+	  filter scripts got removed.
+	- imagetops, texttops: Do not use $0 in the wrapper scripts,
+	  when CUPS calls filters, it passes the queue name as $0, not
+	  path and name of the called filter.
+	- cups-browsed: When creating local queues for discovered IPP
+	  network printers always create PPD files and if the
+	  information supplied by the printer via IPP is insufficient
+	  use information from the DNS-SD entry or default values
+	  suitable for most printers. Use System V interface scripts
+	  only on explicit request in cups-browsed.conf. This change
+	  is to address the fact that System V interface script
+	  support is removed from CUPS 2.2.x and later for security
+	  reasons.
+	- pstopdf: Make the filter only get installed if Ghostscript is
+	  present and also moved its conversion rules into the
+	  cupsfilters-ghostscript.convs file.
+	- cups-browsed: Fixed crash when trying to get debugg logging
+	  both to the terminal and into a file.
+	- libcupsfilters: Fixed crash of pdftoraster when the color
+	  space is an RGB space (3 colors) with 1 bit color
+	  depth. Here we need to add one bit to the pixels (to get 4
+	  bits per pixel) to align the pixels with the bytes.
+	- cups-browsed: From cups-browsed.service removed the unneeded
+	  "Wants=cups.service" as we have "Requires=cups.service"
+	  (Debian bug #827455, #827457).
+	- foomatic-rip: Updated man page for removed page logging
+	  facility.
+	- pdftops: Also added Dell to the list of manufacturers whose
+	  printers need Poppler's PostScript to work around their
+	  PostScript interpreter bugs (Debian bug #827040).
+
+CHANGES IN V1.9.0
+
+	- foomatic-rip: Removed page logging via insertion of PostScript code.
+	  This works only with Ghostscript and PostScript input and even
+	  then it can break things or simply not work. We do the page logging
+	  for foomatic-rip in pdftopdf now, which is more universal and more
+	  reliable.
+	- sys5ippprinter: Added page logging (to /var/log/cups/page_log)
+	  functionality.
+	- pdftopdf: Added functionality for logging pages in the
+	  /var/log/cups/page_log file. Logging can also be forced or
+	  surpressed via command line (page-logging=on/off/auto) and
+	  page logging is also done for filters which should do but
+	  actually do not do: foomatic-rip, gstopxl, hpps (CUPS issue #4798,
+	  Ubuntu bug #1585380).
+	- pdftopdf: Whitespace and indentation clean-up.
+	- README: Removed the documentation of the old Poppler-based pdftopdf
+	  filter which is not included any more.
+	- cups-browsed: Do not schedule failed operations for later repetition
+	  during shutdown.
+	- cups-browsed: Added support for debug logging into a file (usually
+	  /var/log/cups/cups-browsed_log, to be activated via "-l" or
+	  "--logfile" option or via "DebugLogging file" option in
+	  cups-browsed.conf.
+	- cups-browesd: Consistent use of debug_printf() in the LDAP support.
+	- cups-browsed: Added "Requires=cups-service" to the
+	  cups-browsed.service file, so that systemd keeps CUPS running while
+	  shutting down cups-browsed on system shutdown (Ubuntu bug #1579905).
+	- README: Extended pdftopdf's documentation.
+	- README: Added documentation for the pdfAutorotate option in
+	  pdftopdf.
+	- gstoraster: Treat status output of the waitpid() function properly,
+	  to avoid gstoraster exiting with zero status when Ghostscript
+	  exited with non-zero status or got terminated by a signal
+	  (Bug #1354).
+	- README: Fixed typos. Thanks to Pranjal Bhor (bhor dot pranjal at
+	  gmail dot com) for the patch.
+	- braille: Recognize application/vnd.cups-pdf-banner MIME type and
+	  read standard input directly instead of using /dev/stdin.
+	- braille: Drop output of the "type" command when checking the
+	  presence of helper utilities.
+	- braille: Do not send EOF twice to the braille embosser.
+	- cups-browsed/sys5ippprinter: Fixed documentation about the allowed
+	  input formats for auto-created network printer queues using
+	  sys5ippprinter, also improved NEWS entry about renaming of
+	  sys5ippprinter (Debian bug #819665).
+
+CHANGES IN V1.8.3
+
+	- cups-browsed: When creating or modifying a local print queue
+	  set the printer-is-shared bit to false in a separate IPP
+	  request as this operation errors on queues directly pointing
+	  to remote CUPS queues with the IPP backend. This way we can
+	  ignore the error and assure that all other settings are
+	  applied (Ubuntu bug #1560099).
+	- Fixed pkg-config support so that $PKG_CONFIG gets used and
+	  cross compilation works (Bug #1347).
+	- gstoraster: Put conversion rules for this filter into a
+	  separate file, so that they do not get installed when we
+	  build without Ghostscript support (Bug #1346).
+	- Allow disabling dependencies on IJS (Bug #1345).
+	- pdftops: Switch to Poppler as PDF renderer also for the
+	  Apple LaserWriter 12/640, to work around a bug in the
+	  printer's PostScript interpreter (Bug #1344).
 
 CHANGES IN V1.8.2
 
@@ -332,8 +793,8 @@ CHANGES IN V1.0.69
 	  capabilities.
 	- imagetopdf: Make this filter also work with auto-generated PPD-less
 	  print queues for IPP network printers.
-	- sys5ippprinter: Renamed pdftoippprinter to reflect that it is
-	  once a System 5 interface script and second does not accept only
+	- sys5ippprinter: Renamed from pdftoippprinter to reflect that
+	  it is a System 5 interface script and does not accept only
 	  PDF as input.
 	- pdftoippprinter: Support also PWG Raster and JPEG as input formats
 	  so that an auto-generated, PPD-less queue for an IPP printer emulates

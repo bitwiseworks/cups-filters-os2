@@ -6,8 +6,8 @@ AC_PREREQ([2.65])
 # Version informations
 # ====================
 m4_define([cups_filters_version_major],[1])
-m4_define([cups_filters_version_minor],[8])
-m4_define([cups_filters_version_micro],[2])
+m4_define([cups_filters_version_minor],[13])
+m4_define([cups_filters_version_micro],[3])
 m4_define([cups_filters_version],[cups_filters_version_major.cups_filters_version_minor.cups_filters_version_micro])
 
 # =============
@@ -82,7 +82,7 @@ AC_ARG_WITH([cups-config],
 AS_IF([test "x$with_cups_config" != "xsystem"], [
 	CUPSCONFIG=$with_cups_config
 ], [
-	AC_PATH_PROG(CUPSCONFIG, [cups-config])
+	AC_PATH_TOOL(CUPSCONFIG, [cups-config])
 	AS_IF([test -z "$CUPSCONFIG"], [
 		AC_MSG_ERROR([Required cups-config is missing. Please install CUPS developer packages.])
 	])
@@ -112,6 +112,33 @@ AC_SUBST(CUPS_SERVERBIN)
 AX_COMPARE_VERSION([$CUPS_VERSION],[gt],[1.4], [
 	AC_DEFINE(CUPS_1_4, 1, [CUPS Version is 1.4 or newer])
 ])
+
+AC_ARG_ENABLE([driverless], [AS_HELP_STRING([--disable-driverless], [enable PPD generator for driverless printing in /usr/lib/cups/drivers/.])],
+        [enable_driverless="$enableval"],
+        [enable_driverless=yes]
+)
+AX_COMPARE_VERSION([$CUPS_VERSION],[ge],[1.6], [
+	AM_CONDITIONAL([ENABLE_DRIVERLESS],
+	[test "x$enable_driverless" != "xno"])
+])
+
+APPLE_RASTER_FILTER=rastertopdf
+AX_COMPARE_VERSION([$CUPS_VERSION],[lt],[2.2.2], [
+	APPLE_RASTER_FILTER=urftopdf
+])
+AC_ARG_WITH([apple-raster-filter],
+	[AS_HELP_STRING([--with-apple-raster-filter=rastertopdf|urftopdf], [Select filter for Apple Raster input. Default: rastertopdf for CUPS 2.2.2+, urftopdf for older CUPS])],
+	[with_apple_raster_filter="$withval"],
+	[with_apple_raster_filter="$APPLE_RASTER_FILTER"]
+)
+AS_CASE([x$with_apple_raster_filter],
+	[xrastertopdf|xurftopdf], [APPLE_RASTER_FILTER=$with_apple_raster_filter],
+	[AC_MSG_ERROR([Unknown value of with-apple-raster-filter provided: $with_apple_raster_filter])]
+)
+AM_CONDITIONAL([ENABLE_URFTOPDF],
+	       [test "x$APPLE_RASTER_FILTER" == "xurftopdf"])
+AC_SUBST(APPLE_RASTER_FILTER)
+
 AC_DEFINE(PDFTOPDF, [], [Needed for pdftopdf filter compilation])
 AC_DEFINE_DIR(BANNERTOPDF_DATADIR, "{CUPS_DATADIR}/data", [Directory where bannertopdf finds its data files (PDF templates)])
 
@@ -152,8 +179,7 @@ if test x$enable_domainsocket != xno -a x$default_domainsocket != xno; then
                 case "$uname" in
                         Darwin*)
                                 # Darwin and MaxOS X do their own thing...
-                                CUPS_DEFAULT_DOMAINSOCKET="$localstatedir/run/cu
-psd"
+                                CUPS_DEFAULT_DOMAINSOCKET="$localstatedir/run/cupsd"
                                 ;;
                         *)
                                 # All others use FHS standard...
@@ -249,9 +275,6 @@ AS_IF([test x"$with_tiff" != "xno"], [
 # Check for modules needed by utils/
 # ==================================
 
-dnl Check for pkg-config, which is used for some other tests later on...
-AC_PATH_PROG(PKGCONFIG, pkg-config)
-
 dnl Avahi for cups-browsed
 AVAHI_LIBS=""
 AVAHI_CFLAGS=""
@@ -272,17 +295,9 @@ AC_ARG_WITH(avahi-includes,
 	[AS_HELP_STRING([--with-avahi-includes], [Set directory for Avahi includes])],
 	AVAHI_CFLAGS="-I$withval $AVAHI_CFLAGS",)
 
-if test "x$PKGCONFIG" != x -a x$enable_avahi != xno; then
-	AC_MSG_CHECKING(for Avahi)
-	if $PKGCONFIG --exists avahi-client; then
-		AC_MSG_RESULT(yes)
-		AVAHI_CFLAGS="$AVAHI_CFLAGS `$PKGCONFIG --cflags avahi-client`"
-		AVAHI_LIBS="$AVAHI_LIBS `$PKGCONFIG --libs avahi-client`"
-		AC_DEFINE(HAVE_AVAHI, [], [Define if you have the avahi library])
-	else
-		AC_MSG_RESULT(no)
-		enable_avahi=no
-	fi
+if test "x$enable_avahi" != xno; then
+	PKG_CHECK_MODULES(AVAHI, avahi-client,
+		[AC_DEFINE(HAVE_AVAHI, [], [Define if you have the avahi library])])
 fi
 
 AC_SUBST(AVAHI_LIBS)
@@ -336,26 +351,18 @@ PKG_CHECK_MODULES(GLIB, [glib-2.0 >= 2.30.2])
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-if test "x$PKGCONFIG" != x -a x$enable_avahi != xno; then
+if test x$enable_avahi != xno; then
 	PKG_CHECK_MODULES(AVAHI_GLIB, [avahi-glib])
 fi
 
 AC_SUBST(AVAHI_GLIB_CFLAGS)
 AC_SUBST(AVAHI_GLIB_LIBS)
 
-GIO_CFLAGS=""
-GIO_LIBS=""
-if test "x$PKGCONFIG" != x; then
-	PKG_CHECK_MODULES(GIO, [gio-2.0])
-fi
+PKG_CHECK_MODULES(GIO, [gio-2.0])
 AC_SUBST(GIO_CFLAGS)
 AC_SUBST(GIO_LIBS)
 
-GIO_UNIX_CFLAGS=""
-GIO_UNIX_LIBS=""
-if test "x$PKGCONFIG" != x; then
-	PKG_CHECK_MODULES(GIO_UNIX, [gio-unix-2.0])
-fi
+PKG_CHECK_MODULES(GIO_UNIX, [gio-unix-2.0])
 AC_SUBST(GIO_UNIX_CFLAGS)
 AC_SUBST(GIO_UNIX_LIBS)
 
@@ -443,16 +450,21 @@ AS_IF([test x"$lcms2" = "xno"], [
 ])
 PKG_CHECK_MODULES([FREETYPE], [freetype2], [AC_DEFINE([HAVE_FREETYPE_H], [1], [Have FreeType2 include files])])
 PKG_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.0.0])
-PKG_CHECK_MODULES([IJS], [ijs])
-PKG_CHECK_MODULES([POPPLER], [poppler >= 0.18])
+PKG_CHECK_MODULES([IJS], [ijs], [have_ijs=yes], [have_ijs=no])
 PKG_CHECK_MODULES([ZLIB], [zlib])
 AC_DEFINE([HAVE_LIBZ], [], [Define that we use zlib])
 PKG_CHECK_MODULES([LIBQPDF], [libqpdf >= 3.0.2])
 
-# ================
-# Poppler features
-# ================
-AC_CHECK_HEADER([poppler/cpp/poppler-version.h], [AC_DEFINE([HAVE_CPP_POPPLER_VERSION_H],,[Define if you have Poppler's "cpp/poppler-version.h" header file.])], [])
+# =================
+# Check for Poppler
+# =================
+AC_ARG_ENABLE(poppler, AS_HELP_STRING([--enable-poppler],[enable Poppler-based filters]),
+	      enable_poppler=$enableval,enable_poppler=yes)
+AM_CONDITIONAL(ENABLE_POPPLER, test x$enable_poppler = xyes)
+if test x$enable_poppler = xyes; then
+	PKG_CHECK_MODULES([POPPLER], [poppler >= 0.18])
+	AC_CHECK_HEADER([poppler/cpp/poppler-version.h], [AC_DEFINE([HAVE_CPP_POPPLER_VERSION_H],,[Define if you have Poppler's "cpp/poppler-version.h" header file.])], [])
+fi
 
 # ===============
 # Check for D-Bus
@@ -482,6 +494,21 @@ AS_IF([test x"$long_long_found" = "xyes"], [
 ])
 
 # ================
+# Check for Mutool
+# ================
+AC_ARG_ENABLE([mutool],
+	[AS_HELP_STRING([--disable-mutool], [Disable filters using mutool.])],
+	[enable_mutool="$enableval"],
+	[enable_mutool=yes]
+)
+
+AC_ARG_WITH([mutool-path],
+	[AS_HELP_STRING([--with-mutool-path=value], [Set path to mutool binary (default: system).])],
+	[with_mutool_path="$withval"],
+	[with_mutool_path=system]
+)
+
+# ================
 # Check for pdf2ps
 # ================
 AC_ARG_ENABLE([ghostscript],
@@ -489,13 +516,22 @@ AC_ARG_ENABLE([ghostscript],
 	[enable_ghostscript="$enableval"],
 	[enable_ghostscript=yes]
 )
+AC_ARG_ENABLE([ijs],
+	[AS_HELP_STRING([--disable-ijs], [Disable filters using IJS.])],
+	[enable_ijs="$enableval"],
+	[enable_ijs=yes]
+)
+AS_IF([test "x$enable_ijs" = "xyes" -a "x$have_ijs" != "xyes"], [
+       AC_MSG_ERROR([IJS not found, but requested.])
+])
+AM_CONDITIONAL(ENABLE_IJS, test "x$enable_ijs" = "xyes")
 AC_ARG_WITH([pdftops],
-	[AS_HELP_STRING([--with-pdftops=value], [Set which pdftops to use (gs,pdftops,pdftocairo,acroread,hybrid).])],
+	[AS_HELP_STRING([--with-pdftops=value], [Set which pdftops to use (gs,pdftops,pdftocairo,acroread,mupdf,hybrid).])],
 	[with_pdftops="$withval"],
 	[with_pdftops=hybrid]
 )
 AS_CASE([x$with_pdftops],
-        [xgs|xpdftops|xpdftocairo|xacroread|xhybrid], [],
+        [xgs|xpdftops|xpdftocairo|xacroread|xmupdf|xhybrid], [],
         [AC_MSG_ERROR([Unknown value of with-pdftops provided: $with_pdftops])]
 )
 AC_ARG_WITH([gs-path],
@@ -518,6 +554,11 @@ AC_ARG_WITH([acroread-path],
         [with_acroread_path="$withval"],
         [with_acroread_path=system]
 )
+AC_ARG_WITH([ippfind-path],
+        [AS_HELP_STRING([--with-ippfind-path=value], [Set path to ippfind binary (default: system).])],
+        [with_ippfind_path="$withval"],
+        [with_ippfind_path=system]
+)
 AC_ARG_WITH([pdftops-maxres],
 	[AS_HELP_STRING([--with-pdftops-maxres=value], [Set maximum image rendering resolution for pdftops filter (0, 75, 150, 300, 600, 1200, 2400, 4800, 90, 180, 360, 720, 1440, 2880, 5760, unlimited). Default: 1440])],
 	[with_pdftops_maxres="$withval"],
@@ -528,24 +569,35 @@ AS_CASE([x$with_pdftops_maxres],
 	[xunlimited], [CUPS_PDFTOPS_MAXRES=0],
 	[AC_MSG_ERROR([Unknown value of with-pdftops-maxres provided: $with_pdftops])]
 )
+AC_ARG_ENABLE([gs-ps2write],
+	[AS_HELP_STRING([--disable-gs-ps2write], [Ghostscript doesn't support ps2write device.])],
+	[enable_gs_ps2write="$enableval"],
+	[enable_gs_ps2write=yes]
+)
 
 CUPS_GHOSTSCRIPT=""
 AS_IF([test "x$enable_ghostscript" != "xyes"], [
-	AS_IF([test "x$with_gs_path" != "xsystem"], [
-	       AC_MSG_ERROR([Cannot supply both --disable-ghostscript and --gs-path=])
-	], [
-		with_gs_path=""
-	])
+       with_gs_path=""
 ], [
 	AS_IF([test "x$with_gs_path" != "xsystem"], [
 		CUPS_GHOSTSCRIPT="$with_gs_path"
 	], [
-		AC_PATH_PROG(CUPS_GHOSTSCRIPT, [gs], [AC_MSG_ERROR([Required gs binary is missing. Please install ghostscript-gpl package.])])
+		AS_IF([test "x$cross_compiling" = "xyes"], [
+			CUPS_GHOSTSCRIPT="gs"
+		], [
+			AC_CHECK_PROG(CUPS_GHOSTSCRIPT, gs, gs)
+		])
 	])
-	AS_IF([test "x$CUPS_GHOSTSCRIPT" != "x"], [
-		AC_DEFINE([HAVE_GHOSTSCRIPT], [], [Define that we provide ghostscript binary])
-		AS_IF([test x"$with_pdftops" = xgs], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [GS], [Define default renderer])])
+	AS_IF([test "x$CUPS_GHOSTSCRIPT" = "x"], [
+		AC_MSG_ERROR([Required gs binary is missing. Please install ghostscript-gpl package.])
+	])
+	AC_DEFINE([HAVE_GHOSTSCRIPT], [], [Define that we provide ghostscript binary])
+	AS_IF([test x"$with_pdftops" = xgs], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [GS], [Define default renderer])])
 
+	AS_IF([test "xenable_gs_ps2write" = "xyes"], [
+		AC_DEFINE([HAVE_GHOSTSCRIPT_PS2WRITE], [], [gs supports ps2write])
+	])
+	AS_IF([test "x$cross_compiling" != "xyes"], [
 		AC_MSG_CHECKING(whether gs supports the ps2write device)
 		AS_IF([`$CUPS_GHOSTSCRIPT -h 2>&1 | grep -q ps2write`], [
 			AC_MSG_RESULT([yes])
@@ -553,59 +605,87 @@ AS_IF([test "x$enable_ghostscript" != "xyes"], [
 		], [
 			AC_MSG_RESULT([no])
 		])
-	], [
-		CUPS_GHOSTSCRIPT="gs"
 	])
 ])
 AM_CONDITIONAL(ENABLE_GHOSTSCRIPT, test "x$enable_ghostscript" = xyes)
+AC_SUBST(CUPS_GHOSTSCRIPT)
+
+CUPS_MUTOOL=""
+AS_IF([test "x$enable_mutool" != "xyes"], [
+	with_mutool_path=""
+], [
+	AS_IF([test "x$with_mutool_path" != "xsystem"], [
+		CUPS_MUTOOL="$with_mutool_path"
+	], [
+		AS_IF([test "x$cross_compiling" = "xyes"], [
+			CUPS_MUTOOL="mutool"
+		], [
+			AC_CHECK_PROG(CUPS_MUTOOL, mutool, mutool)
+		])
+	])
+	AS_IF([test "x$CUPS_MUTOOL" = "x"], [
+		AC_MSG_ERROR([Required mutool binary is missing. Please install mutool.])
+	])
+	AS_IF([test x"$with_pdftops" = xmupdf], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [MUPDF], [Define default renderer])])
+])
+AM_CONDITIONAL(ENABLE_MUTOOL, test "x$enable_mutool" = xyes)
+AC_SUBST(CUPS_MUTOOL)
 
 AS_IF([test "x$with_pdftops_path" != "xsystem"], [
 	CUPS_PDFTOPS="$with_pdftops_path"
 ], [
-	AC_PATH_PROG(CUPS_PDFTOPS, [pdftops], [AC_MSG_ERROR([Required pdftops is missing. Please install CUPS developer packages.])])
+	AS_IF([test "x$cross_compiling" = "xyes"], [
+		CUPS_PDFTOPS="pdftops"
+	], [
+		AC_CHECK_PROG(CUPS_PDFTOPS, pdftops, /usr/bin/pdftops)
+	])
+	AS_IF([test "x$CUPS_PDFTOPS" = "x"], [
+		AC_MSG_ERROR([Required pdftops is missing. Please install the pdftops utility of Poppler.])
+	])
 ])
 AS_IF([test "x$CUPS_PDFTOPS" != "x"], [
 	AC_DEFINE([HAVE_POPPLER_PDFTOPS], [], [Define that we provide poppler pdftops.])
 	AS_IF([test x"$with_pdftops" = xpdftops], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [PDFTOPS], [Define default renderer])])
 
-	AC_MSG_CHECKING([whether pdftops supports -origpagesizes])
-	AS_IF([`$CUPS_PDFTOPS -h 2>&1 | grep -q -- -origpagesizes`], [
-        	AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_POPPLER_PDFTOPS_WITH_ORIGPAGESIZES], [] , [pdftops supports -origpagesizes.])
-	], [
-	        AC_MSG_RESULT([no])
+	AS_IF([test "x$cross_compiling" != "xyes"], [
+		AC_MSG_CHECKING([whether pdftops supports -origpagesizes])
+		AS_IF([`$CUPS_PDFTOPS -h 2>&1 | grep -q -- -origpagesizes`], [
+        		AC_MSG_RESULT([yes])
+			AC_DEFINE([HAVE_POPPLER_PDFTOPS_WITH_ORIGPAGESIZES], [] , [pdftops supports -origpagesizes.])
+		], [
+	        	AC_MSG_RESULT([no])
+		])
+		AC_MSG_CHECKING([whether pdftops supports -r])
+		AS_IF([`$CUPS_PDFTOPS -h 2>&1 | grep -q -- '-r '`], [
+	        	AC_MSG_RESULT([yes])
+			AC_DEFINE([HAVE_POPPLER_PDFTOPS_WITH_RESOLUTION], [] , [pdftops supports -r argument.])
+		], [
+        		AC_MSG_RESULT([no])
+		])
 	])
-	AC_MSG_CHECKING([whether pdftops supports -r])
-	AS_IF([`$CUPS_PDFTOPS -h 2>&1 | grep -q -- '-r '`], [
-	        AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_POPPLER_PDFTOPS_WITH_RESOLUTION], [] , [pdftops supports -r argument.])
-	], [
-        	AC_MSG_RESULT([no])
-	])
-], [
-	CUPS_PDFTOPS="/usr/bin/pdftops"
 ])
 AS_IF([test "x$with_pdftocairo_path" != "xsystem"], [
 	CUPS_PDFTOCAIRO="$with_pdftocairo_path"
 ], [
-	AC_PATH_PROG(CUPS_PDFTOCAIRO, [pdftocairo], [AC_MSG_ERROR([Required pdftocairo is missing. Please install Poppler developer packages.])])
+	CUPS_PDFTOCAIRO="pdftocairo"
 ])
 AS_IF([test "x$CUPS_PDFTOCAIRO" != "x"], [
-	AC_DEFINE([HAVE_POPPLER_PDFTOCAIRO], [], [Define that we provide poppler pdftocairo.])
 	AS_IF([test x"$with_pdftops" = xpdftocairo], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [PDFTOCAIRO], [Define default renderer])])
 ], [
-	CUPS_PDFTOCAIRO="pdftocairo"
+	AC_MSG_ERROR([Required pdftocairo is missing. Please install Poppler developer packages.])
 ])
 AS_IF([test "x$with_acroread_path" != "xsystem"], [
 	CUPS_ACROREAD="$with_acroread_path"
 ], [
-	AC_PATH_PROG(CUPS_ACROREAD, [acroread], [AC_MSG_ERROR([Required acroread binary is missing. Please install acroread package.])])
+	CUPS_ACROREAD="acroread"
 ])
 AS_IF([test "x$CUPS_ACROREAD" != "x"], [
-	AC_DEFINE([HAVE_ACROREAD], [], [Define that we provide acroread.])
 	AS_IF([test x"$with_pdftops" = xacroread], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [ACROREAD], [Define default renderer])])
+])
+AS_IF([test "x$with_ippfind_path" != "xsystem"], [
+	CUPS_IPPFIND="$with_ippfind_path"
 ], [
-	CUPS_ACROREAD="acroread"
+	CUPS_IPPFIND="ippfind"
 ])
 
 AS_IF([test "x$CUPS_GHOSTSCRIPT" != "x" -a "x$CUPS_PDFTOPS" != "x"], [
@@ -613,9 +693,11 @@ AS_IF([test "x$CUPS_GHOSTSCRIPT" != "x" -a "x$CUPS_PDFTOPS" != "x"], [
 ])
 
 AC_DEFINE_UNQUOTED([CUPS_GHOSTSCRIPT], "$CUPS_GHOSTSCRIPT", [gs binary to use])
+AC_DEFINE_UNQUOTED([CUPS_MUTOOL],"$CUPS_MUTOOL",[mutool binary to use])
 AC_DEFINE_UNQUOTED([CUPS_POPPLER_PDFTOPS], "$CUPS_PDFTOPS", [pdftops binary to use.])
 AC_DEFINE_UNQUOTED([CUPS_POPPLER_PDFTOCAIRO], "$CUPS_PDFTOCAIRO", [pdftocairo binary to use.])
 AC_DEFINE_UNQUOTED([CUPS_ACROREAD], "$CUPS_ACROREAD", [acroread binary to use.])
+AC_DEFINE_UNQUOTED([CUPS_IPPFIND], "$CUPS_IPPFIND", [ippfind binary to use.])
 AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_MAX_RESOLUTION], [$CUPS_PDFTOPS_MAXRES], [max resolution used for pdftops when converting images])
 
 # ==================
@@ -647,7 +729,7 @@ AS_IF([test x"$with_php" = "xyes"], [
 	AS_IF([test "x$with_php_config" != "xsystem"], [
 		PHPCONFIG=$with_php_config
 	], [
-		AC_PATH_PROG(PHPCONFIG, [php-config])
+		AC_PATH_TOOL(PHPCONFIG, [php-config])
 		AS_IF([test -z "$PHPCONFIG"], [
 			AC_MSG_ERROR([Required php-config is missing. Please install PHP developer packages.])
 		])
@@ -685,38 +767,23 @@ AS_IF([test x"$GCC" = "xyes"], [
 CFLAGS="$CFLAGS -D_GNU_SOURCE"
 CXXFLAGS="$CXXFLAGS -D_GNU_SOURCE"
 
-# =======
-# gstopxl
-# =======
-AC_PROG_SED
-dnl See if it is GNU sed or else.
-dnl - need more work to tell SED features.
-SED_EXTENDED_REGEX_OPT=-nre
-sed_variant=`sed --version 2>&1`
-sed_variant=`echo $sed_variant|sed -e 's/ .*//'`
-if test "$sed_variant" != GNU ; then
-SED_EXTENDED_REGEX_OPT=-nEe
-fi
-AC_SUBST(SED_EXTENDED_REGEX_OPT)
-AC_SUBST(CUPS_GHOSTSCRIPT)
-
 # ==========================
 # Braille embossing/liblouis
 # ==========================
 AC_ARG_ENABLE(braille, AS_HELP_STRING([--enable-braille],[enable Braille embosing filters, requires liblouis]),
 	      enable_braille=$enableval,enable_braille=yes)
 AC_MSG_CHECKING(for liblouis)
-if $PKGCONFIG --exists liblouis; then
+PKG_CHECK_EXISTS([liblouis], [
 	AC_MSG_RESULT(yes)
-	if test "x$PKGCONFIG" != x -a "x$enable_braille" = xyes; then
-		TABLESDIR=`$PKGCONFIG --variable=tablesdir liblouis`
+	if test "x$enable_braille" = xyes; then
+		TABLESDIR=`$PKG_CONFIG --variable=tablesdir liblouis`
 	else
 		TABLESDIR=/usr/share/liblouis/tables
 	fi
-else
+], [
 	AC_MSG_RESULT(no)
 	TABLESDIR=/usr/share/liblouis/tables
-fi
+])
 AM_CONDITIONAL(ENABLE_BRAILLE, test "x$enable_braille" = xyes)
 AC_SUBST(TABLESDIR)
 
@@ -737,7 +804,6 @@ AC_CONFIG_FILES([
 	libcupsfilters.pc
 	libfontembed.pc
 	Makefile
-	filter/gstopxl
 	utils/cups-browsed
 	utils/cups-browsed.conf
 	filter/foomatic-rip/foomatic-rip.1
@@ -751,6 +817,7 @@ AC_CONFIG_FILES([
 	filter/braille/filters/cups-braille.sh
 	filter/braille/filters/imagetobrf
 	filter/braille/filters/texttobrf
+	mime/cupsfilters.convs
 ])
 AC_OUTPUT
 
@@ -769,8 +836,12 @@ Build configuration:
 	foomatic:        ${enable_foomatic}
 	init directory:  ${INITDDIR}
 	cups dom socket: ${CUPS_DEFAULT_DOMAINSOCKET}
+	poppler:         ${enable_poppler}
 	ghostscript:     ${enable_ghostscript}
 	gs-path:         ${with_gs_path}
+	mutool:          ${enable_mutool}
+	mutool-path:     ${with_mutool_path}
+	ippfind-path:    ${with_ippfind_path}
 	imagefilters:    ${enable_imagefilters}
 	jpeg:            ${with_jpeg}
 	pdftocairo-path: ${with_pdftocairo_path}
@@ -788,5 +859,7 @@ Build configuration:
 	werror:          ${enable_werror}
 	braille:	 ${enable_braille}
 	braille tables:  ${TABLESDIR}
+	driverless:      ${enable_driverless}
+	apple-raster:    ${APPLE_RASTER_FILTER}
 ==============================================================================
 ])
