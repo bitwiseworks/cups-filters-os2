@@ -487,6 +487,16 @@ filter_present(const char *filter)      /* I - Filter name */
   if (access(filter_path, X_OK) == 0)
     return 1;
 
+#ifdef __OS2__
+ /*
+  * On OS/2 - check for the presence of the executable
+  * if not present - append .exe and try again
+  */
+  strlcat(filter_path, ".exe", 1024);
+  if (access(filter_path, X_OK) == 0)
+    return 1;
+#endif
+
   return 0;
 }
 

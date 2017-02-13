@@ -40,7 +40,11 @@
  * The logfile will get the extension ".log", the PostScript data ".ps".
  */
 #ifndef LOG_FILE
+#ifdef __OS2__
+#define LOG_FILE "/@unixroot/var/temp/foomatic-rip"
+#else
 #define LOG_FILE "/tmp/foomatic-rip"
+#endif
 #endif
 
 

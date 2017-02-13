@@ -169,10 +169,16 @@ gnu echo and put gecho here or something. */
 char echopath[PATH_MAX] = "echo";
 
 /* CUPS raster drivers are searched here */
+#ifdef __OS2__
+char cupsfilterpath[PATH_MAX] = "/@unixroot/usr/local/lib/cups/filter:"
+                                "/@unixroot/usr/local/libexec/cups/filter:"
+                                "/@unixroot/usr/lib/cups/filter";
+#else
 char cupsfilterpath[PATH_MAX] = "/usr/local/lib/cups/filter:"
                                 "/usr/local/libexec/cups/filter:"
                                 "/opt/cups/filter:"
                                 "/usr/lib/cups/filter";
+#endif
 
 char modern_shell[] = SHELL;
 
@@ -969,7 +975,11 @@ int main(int argc, char** argv)
             havegstoraster = 0;
             path = cupsfilterpath;
             while ((path = strncpy_tochar(tmp, path, 1024, ":"))) {
+#ifdef __OS2__
+                strlcat(tmp, "/gstoraster.exe", 1024);
+#else
                 strlcat(tmp, "/gstoraster", 1024);
+#endif
                 if (access(tmp, X_OK) == 0) {
                     havegstoraster = 1;
                     strlcpy(gstoraster, tmp, 256);

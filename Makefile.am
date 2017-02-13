@@ -1,3 +1,7 @@
+VENDOR ?=community
+BUILD_INFO=\#\#1\#\# $(shell date +'%d %b %Y %H:%M:%S')     $(shell uname -n)
+BUILDLEVEL_INFO=@\#$(VENDOR):$(VERSION)\#@$(BUILD_INFO)::::0::
+
 ACLOCAL_AMFLAGS = -I m4
 
 pkgconfdir = $(libdir)/pkgconfig
@@ -165,6 +169,7 @@ libcupsfilters_la_CFLAGS = \
 	$(TIFF_CFLAGS)
 libcupsfilters_la_LDFLAGS = \
 	-no-undefined \
+	-buildlevel '$(BUILDLEVEL_INFO)' \
 	-version-info 1
 if BUILD_DBUS
 libcupsfilters_la_CFLAGS += $(DBUS_CFLAGS) -DHAVE_DBUS
@@ -360,6 +365,7 @@ libfontembed_la_SOURCES = \
 	fontembed/sfnt_subset.c
 libfontembed_la_LDFLAGS = \
 	-no-undefined \
+	-buildlevel '$(BUILDLEVEL_INFO)' \
 	-version-info 1
 
 ttfread_SOURCES = fontembed/main.c
@@ -872,7 +878,7 @@ libphpcups_la_SOURCES = \
 	scripting/php/phpcups.h
 libphpcups_la_LIBADD = $(CUPS_LIBS)
 libphpcups_la_CFLAGS = $(CUPS_CFLAGS)
-libphpcups_la_LDFLAGS = -no-undefined
+libphpcups_la_LDFLAGS = -no-undefined -buildlevel '$(BUILDLEVEL_INFO)'
 endif # WITH_PHP
 
 EXTRA_DIST += \
