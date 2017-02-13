@@ -271,6 +271,9 @@ main(int  argc,				/* I - Number of command-line args */
       /* PWG Raster output */
       set_option_in_str(argv_nt[5], optbuflen, "MediaClass", NULL);
       set_option_in_str(argv_nt[5], optbuflen, "media-class", "PwgRaster");
+      /* Page logging into page_log is not done by gstoraster/pdftoraster,
+	 so let it be done by pdftopdf */
+      set_option_in_str(argv_nt[5], optbuflen, "page-logging", "on");
       if (filter_present("gstoraster") && access(CUPS_GHOSTSCRIPT, X_OK) == 0)
 	cupsArrayAdd(filter_chain, "gstoraster");
       else
@@ -289,10 +292,17 @@ main(int  argc,				/* I - Number of command-line args */
       }
     }
     else if (strcasestr(val, "pdf"))
+    {
       output_format = PDF;
+      /* Page logging into page_log has to be done by pdftopdf */
+      set_option_in_str(argv_nt[5], optbuflen, "page-logging", "on");
+    }
     else if (strcasestr(val, "postscript"))
     {
       output_format = POSTSCRIPT;
+      /* Page logging into page_log is done by pstops, so no need by
+	 pdftopdf */
+      set_option_in_str(argv_nt[5], optbuflen, "page-logging", "off");
       if (filter_present("pdftops"))
       {
 	cupsArrayAdd(filter_chain, "pdftops");
@@ -328,7 +338,12 @@ main(int  argc,				/* I - Number of command-line args */
       {
 	output_format = PCLXL;
 	if (filter_present("gstopxl") && access(CUPS_GHOSTSCRIPT, X_OK) == 0)
+	{
 	  cupsArrayAdd(filter_chain, "gstopxl");
+	  /* Page logging into page_log is not done by gstopxl,
+	     so let it be done by pdftopdf */
+	  set_option_in_str(argv_nt[5], optbuflen, "page-logging", "on");
+	}
 	else
 	{
 	  fprintf(stderr,
@@ -362,6 +377,9 @@ main(int  argc,				/* I - Number of command-line args */
        margins */
     set_option_in_str(argv_nt[5], optbuflen, "MediaClass", NULL);
     set_option_in_str(argv_nt[5], optbuflen, "media-class", "");
+    /* Page logging into page_log is done by rastertopclx, so no need by
+       pdftopdf */
+    set_option_in_str(argv_nt[5], optbuflen, "page-logging", "off");
     /* Does the client send info about margins? */
     if (!get_option_in_str(argv_nt[5], "media-left-margin", 0) &&
 	!get_option_in_str(argv_nt[5], "media-right-margin", 0) &&
@@ -558,6 +576,17 @@ exec_filter(const char *filter,		/* I - Filter to execute */
       }
     }
 
+    /* Send stderr to the Nirwana if we are running gziptoany, as
+       gziptoany emits a false "PAGE: 1 1" */
+    if (strcasestr(filter, "gziptoany")) {
+      if ((fd = open("/dev/null", O_RDWR)) > 2)
+      {
+	dup2(fd, 2);
+	close(fd);
+      }
+      fcntl(2, F_SETFL, O_NDELAY);
+    }
+
     if ((fd = open("/dev/null", O_RDWR)) > 3)
     {
       dup2(fd, 3);
@@ -576,7 +605,7 @@ exec_filter(const char *filter,		/* I - Filter to execute */
     * Execute command...
     */
 
-    execv(filter, argv);
+    execvp(filter, argv);
 
     perror(filter);
 
