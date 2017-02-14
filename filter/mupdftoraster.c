@@ -52,8 +52,13 @@ MIT Open Source License  -  http://www.opensource.org/
 
 #define PDF_MAX_CHECK_COMMENT_LINES	20
 
+#ifdef __OS2__
+#define CUPS_IPTEMPFILE "/@unixroot/var/temp/ip-XXXXXX"
+#define CUPS_OPTEMPFILE "/@unixroot/var/temp/op-XXXXXX"
+#else
 #define CUPS_IPTEMPFILE "/tmp/ip-XXXXXX"
 #define CUPS_OPTEMPFILE "/tmp/op-XXXXXX"
+#endif
 
 #ifdef CUPS_RASTER_SYNCv1
 typedef cups_page_header2_t mupdf_page_header;
@@ -242,6 +247,9 @@ mutool_spawn (const char *filename,
     fwrite(buf, 1, BUFSIZ, stdout);
   
   fclose(tempfp);
+#ifdef __OS2__
+  fflush(stdout);
+#endif
 
  out:
   free(mutoolargv);

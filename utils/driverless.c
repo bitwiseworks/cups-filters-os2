@@ -32,6 +32,9 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <sys/wait.h>
+#ifdef __OS2__
+#include <fcntl.h>
+#endif
 
 #include <cups/cups.h>
 #include <cups/ppd.h>
@@ -338,6 +341,9 @@ list_printers (int mode)
 
     while ((bytes = cupsFileRead(fp, buffer, sizeof(buffer))) > 0)
       fwrite(buffer, 1, bytes, stdout);
+#ifdef __OS2__
+  fflush(stdout);
+#endif
 
     exit(0);
   }
@@ -520,12 +526,19 @@ generate_ppd (const char *uri)
   httpClose(http);
 
   /* Output of PPD file to stdout */
+#ifdef __OS2__
+  fd = open(ppdname, O_RDONLY | O_BINARY);
+#else
   fd = open(ppdname, O_RDONLY);
+#endif
   while ((bytes = read(fd, buffer, sizeof(buffer))) > 0)
     bytes = fwrite(buffer, 1, bytes, stdout);
   close(fd);
   unlink(buffer);
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
   return 0;
   
  fail:

@@ -572,7 +572,11 @@ main(int  argc,				/* I - Number of command-line args */
   }
 
   /* Open the input file */
+#ifdef __OS2__
+  fd = open(filename, O_RDONLY | O_BINARY);
+#else
   fd = open(filename, O_RDONLY);
+#endif
   if (fd < 0) {
     fprintf(stderr, "ERROR: Unable to open input text file %s\n", filename);
     goto error;
@@ -848,6 +852,9 @@ main(int  argc,				/* I - Number of command-line args */
     cupsArrayDelete(page_array);
   }
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
  /*
   * Cleanup and exit...
   */
