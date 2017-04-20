@@ -986,11 +986,11 @@ install-exec-hook:
 	$(INSTALL) -d -m 755 $(DESTDIR)$(pkgfilterdir)
 	$(INSTALL) -d -m 755 $(DESTDIR)$(pkgbackenddir)
 if ENABLE_FOOMATIC
-	$(LN_S) -f $(pkgfilterdir)/foomatic-rip $(DESTDIR)$(bindir)
+	$(LN_S) -f $(pkgfilterdir)/foomatic-rip$(EXEEXT) $(DESTDIR)$(bindir)
 endif
 if ENABLE_DRIVERLESS
-	$(LN_S) -f $(pkgppdgendir)/driverless $(DESTDIR)$(bindir)
-	$(LN_S) -f $(pkgppdgendir)/driverless $(DESTDIR)$(pkgbackenddir)
+	$(LN_S) -f $(pkgppdgendir)/driverless$(EXEEXT) $(DESTDIR)$(bindir)
+	$(LN_S) -f $(pkgppdgendir)/driverless$(EXEEXT) $(DESTDIR)$(pkgbackenddir)
 endif
 if ENABLE_BRAILLE
 	$(LN_S) -f imagetobrf $(DESTDIR)$(pkgfilterdir)/imagetoubrl
