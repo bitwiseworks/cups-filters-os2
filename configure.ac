@@ -6,8 +6,8 @@ AC_PREREQ([2.65])
 # Version informations
 # ====================
 m4_define([cups_filters_version_major],[1])
-m4_define([cups_filters_version_minor],[13])
-m4_define([cups_filters_version_micro],[3])
+m4_define([cups_filters_version_minor],[17])
+m4_define([cups_filters_version_micro],[2])
 m4_define([cups_filters_version],[cups_filters_version_major.cups_filters_version_minor.cups_filters_version_micro])
 
 # =============
@@ -52,6 +52,7 @@ AH_BOTTOM([
 # ===========================
 AC_PROG_CC
 AC_PROG_CXX
+AX_CXX_COMPILE_STDCXX([11],[noext],[mandatory])
 AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_INSTALL
@@ -113,7 +114,7 @@ AX_COMPARE_VERSION([$CUPS_VERSION],[gt],[1.4], [
 	AC_DEFINE(CUPS_1_4, 1, [CUPS Version is 1.4 or newer])
 ])
 
-AC_ARG_ENABLE([driverless], [AS_HELP_STRING([--disable-driverless], [enable PPD generator for driverless printing in /usr/lib/cups/drivers/.])],
+AC_ARG_ENABLE([driverless], [AS_HELP_STRING([--enable-driverless], [enable PPD generator for driverless printing in /usr/lib/cups/driver/, for manual setup of driverless printers with printer setup tool.])],
         [enable_driverless="$enableval"],
         [enable_driverless=yes]
 )
@@ -141,6 +142,14 @@ AC_SUBST(APPLE_RASTER_FILTER)
 
 AC_DEFINE(PDFTOPDF, [], [Needed for pdftopdf filter compilation])
 AC_DEFINE_DIR(BANNERTOPDF_DATADIR, "{CUPS_DATADIR}/data", [Directory where bannertopdf finds its data files (PDF templates)])
+
+AC_ARG_ENABLE([auto-setup-driverless], [AS_HELP_STRING([--enable-auto-setup-driverless], [enable automatic setup of IPP network printers with driverless printing support.])],
+        [enable_auto_setup_driverless="$enableval"],
+        [enable_auto_setup_driverless=no]
+)
+if test "x$enable_auto_setup_driverless" != "xno"; then
+	AC_DEFINE([DRIVERLESS_IPP_PRINTERS_AUTO_SETUP], [], [Auto-setup driverless IPP network printers?])
+fi
 
 AC_SEARCH_LIBS([dlopen],
 	[dl],
@@ -455,6 +464,30 @@ PKG_CHECK_MODULES([ZLIB], [zlib])
 AC_DEFINE([HAVE_LIBZ], [], [Define that we use zlib])
 PKG_CHECK_MODULES([LIBQPDF], [libqpdf >= 3.0.2])
 
+# ===============================
+# Check for PCLm printing support
+# ===============================
+AC_ARG_ENABLE([pclm], [AS_HELP_STRING([--enable-pclm], [enable PCLm printing.])],
+	[enable_pclm="$enableval"],
+	[enable_pclm=yes]
+)
+if test "x$enable_pclm" != "xno"; then
+	# Do we have QPDF 7.0.0 or newer?
+	AC_CHECK_HEADERS([qpdf/Pl_RunLength.hh],
+		[],
+		[enable_pclm=no]
+	)
+fi
+if test "x$enable_pclm" != "xno"; then
+	AC_DEFINE([QPDF_HAVE_PCLM], [1], [QPDF has PCLm support?])
+	QPDF_NO_PCLM=
+else
+	QPDF_NO_PCLM=\#
+fi
+AC_SUBST(QPDF_NO_PCLM)
+
+
+
 # =================
 # Check for Poppler
 # =================
@@ -761,8 +794,8 @@ AS_IF([test x"$enable_werror" = "xyes"], [
 ])
 AS_IF([test x"$GCC" = "xyes"], [
 	# Be tough with warnings and produce less careless code
-	CFLAGS="$CFLAGS -Wall -pedantic -std=gnu99"
-	CXXFLAGS="$CXXFLAGS -Wall -pedantic" # -Weffc++" # TODO: enable when it does not print 1MB of warnings
+	CFLAGS="$CFLAGS -Wall -std=gnu11"
+	CXXFLAGS="$CXXFLAGS -Wall " # -Weffc++" # TODO: enable when it does not print 1MB of warnings
 ])
 CFLAGS="$CFLAGS -D_GNU_SOURCE"
 CXXFLAGS="$CXXFLAGS -D_GNU_SOURCE"
@@ -817,7 +850,11 @@ AC_CONFIG_FILES([
 	filter/braille/filters/cups-braille.sh
 	filter/braille/filters/imagetobrf
 	filter/braille/filters/texttobrf
+	filter/braille/filters/liblouis1.defs.gen
 	mime/cupsfilters.convs
+])
+AC_CONFIG_COMMANDS([executable-scripts], [
+	chmod +x filter/braille/filters/liblouis1.defs.gen
 ])
 AC_OUTPUT
 
@@ -861,5 +898,7 @@ Build configuration:
 	braille tables:  ${TABLESDIR}
 	driverless:      ${enable_driverless}
 	apple-raster:    ${APPLE_RASTER_FILTER}
+	pclm:            ${enable_pclm}
+	driverless auto-setup: ${enable_auto_setup_driverless}
 ==============================================================================
 ])

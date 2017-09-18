@@ -81,43 +81,42 @@ list_printers (int mode)
   /* ippfind ! --txt printer-type --and \( --txt-pdl image/pwg-raster --or --txt-pdl image/urf \) -x echo -en '{service_uri}\t{txt_usb_MFG}\t{txt_usb_MDL}\t{txt_product}\t{txt_ty}\t{service_name}\t{txt_pdl}\n' \; */
 
   i = 0;
-  ippfind_argv[i++]  = "ippfind";
-  ippfind_argv[i++]  = "-T";               /* Bonjour poll timeout */
-  ippfind_argv[i++]  = "3";                /* 3 seconds */
-  ippfind_argv[i++]  = "!";                /* ! --txt printer-type */
-  ippfind_argv[i++]  = "--txt";            /* No remote CUPS queues */
-  ippfind_argv[i++]  = "printer-type";     /* (no "printer-type" in TXT
+  ippfind_argv[i++] = "ippfind";
+  ippfind_argv[i++] = "-T";               /* Bonjour poll timeout */
+  ippfind_argv[i++] = "3";                /* 3 seconds */
+  ippfind_argv[i++] = "!";                /* ! --txt printer-type */
+  ippfind_argv[i++] = "--txt";            /* No remote CUPS queues */
+  ippfind_argv[i++] = "printer-type";     /* (no "printer-type" in TXT
 					      record) */
-  ippfind_argv[i++]  = "--and";            /* and */
-  ippfind_argv[i++]  = "(";
-  ippfind_argv[i++]  = "--txt-pdl";        /* PDL list in TXT record contains */
-  ippfind_argv[i++]  = "image/pwg-raster"; /* PWG Raster (IPP Everywhere) */
-#ifdef CUPS_RASTER_HAVE_APPLERASTER
-  ippfind_argv[i++]  = "--or";             /* or */
-  ippfind_argv[i++]  = "--txt-pdl";
-  ippfind_argv[i++] = "image/urf";        /* Apple Raster */
-  ippfind_argv[i++] = ")";
-  ippfind_argv[i++] = "-x";
-  ippfind_argv[i++] = "echo";             /* Output the needed data fields */
-  ippfind_argv[i++] = "-en";              /* separated by tab characters */
-  if (mode > 0)
-    ippfind_argv[i++] = "{service_uri}\t{txt_usb_MFG}\t{txt_usb_MDL}\t{txt_product}\t{txt_ty}\t{txt_pdl}\n";
-  else
-    ippfind_argv[i++] = "{service_uri}\n";
-  ippfind_argv[i++] = ";";
-  ippfind_argv[i++] = NULL;
-#else
-  ippfind_argv[i++] = ")";
-  ippfind_argv[i++] = "-x";
-  ippfind_argv[i++] = "echo";             /* Output the needed data fields */
-  ippfind_argv[i++] = "-en";              /* separated by tab characters */
-  if (mode > 0)
-    ippfind_argv[i++] = "{service_uri}\t{txt_usb_MFG}\t{txt_usb_MDL}\t{txt_product}\t{txt_ty}\t{txt_pdl}\n";
-  else
-    ippfind_argv[i++] = "{service_uri}\n";
-  ippfind_argv[i++] = ";";
-  ippfind_argv[i++] = NULL;
+  ippfind_argv[i++] = "--and";            /* and */
+  ippfind_argv[i++] = "(";
+  ippfind_argv[i++] = "--txt-pdl";        /* PDL list in TXT record contains */
+  ippfind_argv[i++] = "image/pwg-raster"; /* PWG Raster (IPP Everywhere) */
+#ifdef QPDF_HAVE_PCLM
+  ippfind_argv[i++] = "--or";             /* or */
+  ippfind_argv[i++] = "--txt-pdl";
+  ippfind_argv[i++] = "application/PCLm"; /* PCLm */
 #endif
+#ifdef CUPS_RASTER_HAVE_APPLERASTER
+  ippfind_argv[i++] = "--or";             /* or */
+  ippfind_argv[i++] = "--txt-pdl";
+  ippfind_argv[i++] = "image/urf";        /* Apple Raster */
+#endif
+  ippfind_argv[i++] = "--or";             /* or */
+  ippfind_argv[i++] = "--txt-pdl";
+  ippfind_argv[i++] = "application/pdf";  /* PDF */
+  ippfind_argv[i++] = ")";
+  ippfind_argv[i++] = "-x";
+  ippfind_argv[i++] = "echo";             /* Output the needed data fields */
+  ippfind_argv[i++] = "-en";              /* separated by tab characters */
+  if (mode > 0)
+    ippfind_argv[i++] = "{service_uri}\t{txt_usb_MFG}\t{txt_usb_MDL}\t{txt_product}\t{txt_ty}\t{txt_pdl}\n";
+  else
+    ippfind_argv[i++] = "{service_uri}\n";
+  ippfind_argv[i++] = ";";
+  ippfind_argv[i++] = NULL;
+  /*for (i = 0; ippfind_argv[i]; i++) fprintf(stderr, "%s ", ippfind_argv[i]);
+    fprintf(stderr, "\n");*/
 
  /*
   * Create a pipe for passing the ippfind output to post-processing
@@ -279,10 +278,13 @@ list_printers (int mode)
 	    (strcasestr(pdl, "application/pdf") ||
 	     strcasestr(pdl, "application/postscript") ||
 	     strcasestr(pdl, "application/vnd.hp-PCL") ||
+	     strcasestr(pdl, "application/PCLm") ||
 	     strcasestr(pdl, "image/"))) {
 	  value[0] = '\0';
 	  if (strcasestr(pdl, "application/pdf"))
 	    strncat(value, ",PDF", sizeof(value));
+	  if (strcasestr(pdl, "application/PCLm"))
+	    strncat(value, ",PCLM", sizeof(value));
 	  if (strcasestr(pdl, "application/postscript"))
 	    strncat(value, ",PS", sizeof(value));
 	  if (strcasestr(pdl, "application/vnd.hp-PCL"))
@@ -475,8 +477,10 @@ generate_ppd (const char *uri)
 			       host_name, sizeof(host_name),
 			       &(host_port),
 			       resource, sizeof(resource));
-  if (uri_status != HTTP_URI_OK)
+  if (uri_status != HTTP_URI_OK) {
+    fprintf(stderr, "ERROR: Invalid URI: %s\n", uri);
     goto fail;
+  }
   if ((http = httpConnect(host_name, host_port)) ==
       NULL) {
     fprintf(stderr, "ERROR: Cannot connect to remote printer %s (%s:%d)\n",
@@ -504,12 +508,14 @@ generate_ppd (const char *uri)
 
   /* Generate the PPD file */
   if (!ppdCreateFromIPP(ppdname, sizeof(ppdname), response, NULL, NULL, 0, 0)) {
-    if (errno != 0)
+    if (strlen(ppdgenerator_msg) > 0)
+      fprintf(stderr, "ERROR: Unable to create PPD file: %s\n",
+	      ppdgenerator_msg);
+    else if (errno != 0)
       fprintf(stderr, "ERROR: Unable to create PPD file: %s\n",
 	      strerror(errno));
     else
-      fprintf(stderr, "ERROR: Unable to create PPD file: %s\n",
-	      ppdgenerator_msg);
+      fprintf(stderr, "ERROR: Unable to create PPD file: Unknown reason\n");
     goto fail;
   } else if (debug) {
     fprintf(stderr, "DEBUG: PPD generation successful: %s\n", ppdgenerator_msg);
@@ -529,8 +535,6 @@ generate_ppd (const char *uri)
   return 0;
   
  fail:
-  fprintf(stderr, "ERROR: Unable to generate PPD file.\n");
-
   ippDelete(response);
   if (http)
     httpClose(http);
