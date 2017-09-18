@@ -483,8 +483,5 @@ main(int  argc,	   /* I - Number of command-line arguments */
   }
   writeTrailer(Page);
 
-#ifdef __OS2__
-  fflush(stdout);
-#endif
   return 0;
 }

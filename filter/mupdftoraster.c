@@ -247,9 +247,6 @@ mutool_spawn (const char *filename,
     fwrite(buf, 1, BUFSIZ, stdout);
   
   fclose(tempfp);
-#ifdef __OS2__
-  fflush(stdout);
-#endif
 
  out:
   free(mutoolargv);

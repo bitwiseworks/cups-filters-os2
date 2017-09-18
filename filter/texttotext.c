@@ -852,9 +852,6 @@ main(int  argc,				/* I - Number of command-line args */
     cupsArrayDelete(page_array);
   }
 
-#ifdef __OS2__
-  fflush(stdout);
-#endif
  /*
   * Cleanup and exit...
   */

@@ -343,9 +343,6 @@ list_printers (int mode)
 
     while ((bytes = cupsFileRead(fp, buffer, sizeof(buffer))) > 0)
       fwrite(buffer, 1, bytes, stdout);
-#ifdef __OS2__
-  fflush(stdout);
-#endif
 
     exit(0);
   }
@@ -542,9 +539,6 @@ generate_ppd (const char *uri)
   close(fd);
   unlink(buffer);
 
-#ifdef __OS2__
-  fflush(stdout);
-#endif
   return 0;
   
  fail:

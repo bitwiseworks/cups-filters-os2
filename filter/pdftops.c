@@ -1458,9 +1458,6 @@ main(int  argc,				/* I - Number of command-line args */
 	  */
 	  while ((bytes = cupsFileRead(fp, buffer, sizeof(buffer))) > 0)
 	    fwrite(buffer, 1, bytes, stdout);
-#ifdef __OS2__
-          fflush(stdout);
-#endif
 	}
       }
 

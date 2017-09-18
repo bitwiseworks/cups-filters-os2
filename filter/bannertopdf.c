@@ -513,9 +513,6 @@ static int generate_banner_pdf(banner_t *banner,
         pdf_duplicate_page(doc, 1, copies);
 
     pdf_write(doc, stdout);
-#ifdef __OS2__
-    fflush(stdout);
-#endif
     free(buf);
     pdf_free(doc);
     return 0;
