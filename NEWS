@@ -1,5 +1,294 @@
-NEWS - OpenPrinting CUPS Filters v1.13.3 - 2017-01-18
+NEWS - OpenPrinting CUPS Filters v1.17.2 - 2017-08-25
 -----------------------------------------------------
+
+CHANGES IN V1.17.2
+
+	- libcupsfilters: Fixed outstanding bug in PCLm with JPEG (DCT)
+	  compression. Now PCLm support is completely working.
+
+CHANGES IN V1.17.1
+
+	- libcupsfilters: Added direct PNG printing to the PPD
+	  generator, the one of CUPS has it, too.
+	- libcupsfilters: In the PPD file generator renamed the option
+	  "cupsPrintQuality" into the IPP name "print-quality" as CUPS
+	  does not update the "print-quality=4" entry in the filter
+	  command line based on the setting of "cupsPrintQuality"
+	  (CUPS issue #5090).
+	- libcupsfilters: Completely redone the way how to determine
+	  the resolutions to use for the default resolution and print
+	  quality option in the PPDs generated for IPP
+	  printers. Resolution lists from IPP attributes are now read
+	  into sorted, duplicate-free lists with wrong resolutions
+	  removed or fixed. Resolutions actually used are the common
+	  ones between the supported PDLs, PDls with inferior maximum
+	  resolution or with broken resolution list are skipped
+	  (Debian bug #868360, Ubuntu bug #1712019, CUPS issue #5088,
+	  CUPS issue #5091).
+	- rastertopdf: Prefer RLE compression instead of Flate as
+	  there are HP printers where Flate is buggy.
+	- Build system: Fixed help mesage for "--enable-driverless"
+	  configure option (Bug #1405).
+
+CHANGES IN V1.17.0
+
+	- rastertopdf, rastertopclm, driverless, cups-browsed,
+	  libcupsfilters: Added support for the PCLm output format for
+	  driverless printing on Mopria and Wi-Fi Direct
+	  printers. This is the Google Summer of Code 2017 project of
+	  Sahil Arora (sahilarora dot 535 at gmail dot com). Thank you
+	  very much for your great work!  The PCLm support requires
+	  QPDF 7.0.0 or later.
+
+CHANGES IN V1.16.4
+
+	- Build system: Switched over to C11 standard with GNU
+          extensions (-std=gnu11).
+	- Build system: Removed -pedantic flag as it is only needed
+          for compatibility with commercial compilers like the ones of
+          Windows (and we use GNU extensions anyway).
+	- libfontembed, texttopdf: reverted removal of anonymous
+          union.
+
+CHANGES IN V1.16.3
+
+	- libfontembed: Reverted unneeded soname change.
+
+CHANGES IN V1.16.2
+
+	- README: Minimum CUPS requirement of cups-filters is CUPS
+	  1.4.x.  It does not build with earlier CUPS versions (Bug
+	  #993).
+	- driverless, foomatic-rip: Create relative symbolic links.
+	- All C/C++ files: Silenced all compiler warnings, at least
+	  the ones appearing when building on Ubuntu Linux 17.10 with
+	  GCC 7.1.0.
+	- README: Updated the introduction section to reflect the
+	  current functionality of cups-filters, and the build
+	  requirements for the Poppler-based filters (C++11: Bug
+	  #1404, Build configuration of Poppler: Bug #1257). Thanks to
+	  Roland Hieber (r dot hieber at pengutronix dot de) to find
+	  out about this.
+	- pdftoopvp, bannertopdf, pdftoraster: Build with C++11
+	  standard as some features of this standard are needed by
+	  these filters (or by Poppler). Thanks to Roland Hieber (r
+	  dot hieber at pengutronix dot de) for the patch (Bug #1404).
+
+CHANGES IN V1.16.1
+
+	- cups-browsed: Make timeouts for HTTP access to the local
+	  CUPS daemon and remote IPP printers configurable. Thanks to
+	  Cedric Dufour (cedric dot dufour at idiap dot ch) for the
+	  patch (Bug #1387, Debian bug #852436).
+	- texttopdf: Allow bold and underline formatting to be used
+	  together when using "prettyprint". Thanks to Michael Moran
+	  (vampm at comcast dot net) for the patch.
+	- texttopdf: Allow to alter margins, and chars/lines per Inch
+	  when using "prettyprint". Thanks to Michael Moran (vampm at
+	  comcast dot net) for the patch.
+	- texttopdf: When "prettyprint" is used, do not drop out of
+	  C/shell comment mode too early. Thanks to Michael Moran
+	  (vampm at comcast dot net) for the patch.
+	- cups-browsed: Additional NULL checks for description and
+          location.
+	- cups-browsed: Fixed crash which happens when using
+	  BrowsePoll (Debian bug #723835).
+
+CHANGES IN V1.16.0
+
+	- cups-browsed: Let elements in arrays get stacked up in the
+	  order they are added, before, they were in the order how
+	  they are positioned in memory. This especially led to a
+	  random order of printer cluster definitions and of
+	  command-line-supplied configuration options.
+	- cups-browsed: On shutdown not all locally created queues got
+          deleted.
+	- cups-browsed: Added support for manual definition of
+	  load-balancing printer clusters via the "Cluster" directive
+	  in cups-browsed.conf.
+
+CHANGES IN V1.15.0
+
+	- cups-browsed: Removed the function to compare printer entries
+	  for sorting the printer entry list. This led to corruption
+	  of the list and so to crashes.
+	- cups-browsed: Fixed crashes when many printers (especially
+	  all printers of a load-balanced cluster) are removed at once.
+	- cups-browsed: Log the full list of handled remote printers
+	  whenever one is added or removed.
+	- cups-browsed: Renamed the handle_cups_queues() function to
+	  update_cups_queues() to better reflect what it is doing.
+	- cups-browsed: When clustering remote CUPS printers together
+	  do not call them duplicates but slaves asigned to a master.
+	- cups-browsed: Log the error if the network interface name of
+	  a DNS-SD event could not be determined.
+	- cups-browsed: Simplified printer entry removal procedure.
+	- cups-browsed: Log memeber printer list of a printer cluster
+	  (implicit class) when a member printer is added or removed.
+	- cups-browsed: Removed superfluous (and not correctly
+          working) duplicate counter from the remote printer entry
+          data structure.
+	- cups-browsed: Add "AutoClustering" directive to
+	  cups-browsed.conf to turn on and off automatically
+	  clustering equally named local print queues which point to
+	  remote CUPS printers. When automatic clustering is turned
+	  off, queue name clashes are prevented by adding "@<server
+	  name>" to local queue names based on the remote queue name
+	  or on make and model.
+	- cups-browsed: Skip callback functions and the CUPS queue
+	  creation/update/removal loop when cups-browsed is terminated
+	  by a SIGTERM signal. This avoids hanging on shutdown. Thanks
+	  to Edgar Fuss (ef at math dot uni-bonn dot de, Bug #1402).
+	- libcupsfilters: Added some fallbacks for incorrect
+	  resolution IPP attributes on IPP network printers (Debian
+	  bug #868360).
+	- pdftoopvp: Added missing "#include <math.h>" needed for
+	  cross-compiling for arm-v7a-linux-gnueabi (Bug #1232).
+	- cups-browsed: Prevent the creation of two remote printer
+	  entries for two IPP network printers or an IPP network
+	  printer and a remote CUPS printer with the same local queue
+	  name. This could easily happen with make/model-based naming.
+	- cups-browsed: Added the possibility to optionally not
+	  create local queues for remote printers for which CUPS
+	  (from 2.2.x on) auto-creates queues by itself (DNS-SD
+	  advertised driverless printers).
+	- cups-browsed: Removed repeated code for clean-up when
+	  generate_local_queue() function fails.
+	- cups-browsed: Take care of CUPS' temporary queues. Do not
+	  consider them when checking whether a queue with the same
+	  name as the one we are creating already exists and make
+	  temporary queues permanent (or remove them) before
+	  overwriting them with our local queue.
+	- cups-browsed: Make the naming scheme for locally created
+	  print queue configurable, especially allow for naming based
+	  on the DNS-SD service name (now default) as this is the same
+	  scheme as CUPS uses for its temporary queues. This way we
+	  prevent CUPS creating temporary queues when cups-browsed is
+	  already creating a queue.
+	- cups-browsed: Do not add "APRemoteQueueID" keyword to the
+	  local queue's PPD file if the queue is for an IPP network
+	  printer.
+	- cups-browsed: Skip multiple browse entries for the same
+	  printer with interface alias addresses.  Thanks to Edgar
+	  Fuss (ef at math dot uni-bonn dot de, Bug #1399).
+	- cups-browsed: Improved support for Description (Info) and
+	  Location fields of remote CUPS queues. Thanks to Edgar Fuss
+	  (ef at math dot uni-bonn dot de, Bug #1398).
+	- cups-browsed: Renamed variable names for better code
+	  readability.  Thanks to Edgar Fuss (ef at math dot uni-bonn
+	  dot de, Bug #1398).
+	- cups-browsed: Additional NULL checks in the
+	  create_local_queue() function. Thanks to Edgar Fuss (ef at
+	  math dot uni-bonn dot de, Bug #1398).
+
+CHANGES IN V1.14.1
+
+	- cups-browsed: Do correct removal of printer entry handling
+	  duplicates correctly also when a legacy CUPS-broadcasted
+	  printer disappears or a printer remaining from the last
+	  session does not appear again.
+	- cups-browsed: Use getline() instead of fgets() to read saved
+	  option settings. This is less crash-prone (Ubuntu bug
+	  #1658833).
+	- cups-browsed: Improved error logging when saving option
+          settings.
+	- cups-browsed: Added NULL checks for generate_local_queue()
+	  and create_local_queue() functions.
+	- cups-browsed: When accessing local CUPS queues use always
+	  the correct port of the CUPS daemon we are attached to.
+	- cups-browsed: Check whether a connection to the local CUPS
+	  daemon actually happened before using it (Ubuntu bug
+	  #1644049).
+	- cups-browsed: Set unused fields of printer record to NULL
+	  when tranfering data from the record of a duplicate printer
+	  to the record of a disappeared one.
+	- cups-browsed: Simplify removal of all queues on shutdown or
+	  stop of Avahi.
+	- cups-browsed: When creating a record for a discovered
+	  printer set it all zero before filling it in, to assure
+	  that no field is in an undefined state.
+	- cups-browsed: All functions which are called via Glib
+	  functions or otherwise event-triggered log now in which
+	  thread they are running. This way one can see whether
+	  problems can be caused by concurrent access to global
+	  resources.
+	- cups-browsed: Do not check whether the DNS-SD event is from
+	  the local machine in the browse_callback() function. We
+	  cannot check the port here.
+	- cups-browsed: Added more NULL checks to Avahi callback
+          functions.
+	- cups-browsed: Added NULL check to avoid crashes in the Avahi
+	  resolver callback (Ubuntu bug #1696967).
+	- libcupsfilters: Let PPD generator do case-insensitive
+	  comparisons for PWG Raster color spaces, as some printers
+	  (Epson) do not use the standard-conforming all-lowercase
+	  form for them (CUPS Issue #4998).
+
+CHANGES IN V1.14.0
+
+	- cups-browsed: When a printer is discovered via DNS-SD on the
+	  "lo" (loopback) interface the printer is not reliably
+	  accessible through the reported host name (which is the
+	  network host name of the local machine). Until this problem
+	  is fixed in Avahi, we create queues for such printers with a
+	  URI based on the IP address. This is a workaround until
+	  Avahi fully supports the "lo" interface.
+	- cups-browsed: Added new setting "LocalOnly" for the
+          CreateIPPPrinterQueues in cups-browsed.conf. With this new
+          setting (which is the default from now on) only for local
+          printers made available as IPP printers (like IPP-over-USB
+          printers with ippusbxd) queues are auto-created. With this
+          we can follow the common standard of distributions where USB
+          printers are automatically set up and network printers not.
+	- cups-browsed: Fixes and improvements in comments and debug
+	  messages: 1. Bonjour -> DNS-SD; 2. When a remote CUPS class
+	  is discovered, tell that it is a class; 3. Show network
+	  interface and IPv4/IPv6 when a DNS-Sd service appears or
+	  disappears.
+	- cups-browsed: Added ./configure script option
+	  "--enable-auto-setup-driverless" to let cups-browsed
+	  automatically set up IPP network printers by default.
+
+CHANGES IN V1.13.5
+
+	- foomatic-rip: When called via the utility cupsfilter from
+          CUPS, foomatic-rip was not able to read the PPD file with
+          the file name supplied as environment variable PPD (Bug
+          #1388).
+	- driverless: Improved error message output.
+	- libcupsfilters: Fixed error handling of the PPD file
+	  generator for driverless printing, so that callers get
+	  decent error messages.
+	- libcupsfilters: Do not generate a PPD file where the only
+	  output data format is JPEG, as JPEG does not support
+	  multi-page documents.
+	- libcupsfilters: Let PPD generator skip broken page size
+	  records and add warnings for debugging to the PPD.
+	- libcupsfilters: Updated PPD generator to match with the
+	  current GIT state of the one of CUPS.
+	- braille: Automatically select a table according to the
+	  current locale.
+	- braille: Update for liblouis table list.
+	- braille: Added support for text margins.
+	- cups-browsed: When creating a local queue for a remote CUPS
+	  printer, add the line '*APRemoteQueueID: ""' to the PPD file
+	  so that CUPS sets the CUPS_PRINTER_REMOTE bit for the
+	  printer type of the local queue (Bug #1386).
+
+CHANGES IN V1.13.4
+
+	- libcupsfilters: Let PPD generator for driverless printing
+	  not error out when there is no urf-supported or
+	  pwg-raster-document-resolution-supported IPP attribute,
+	  simply accept the default resolution also from the
+	  printer-resolution-default attribute or set a default value
+	  of 300 dpi to get a working PPD file.
+	- cups-browsed: Do not use deprecated names for IPP status
+	  constants
+	- cups-browsed: Corrected determination whether an IPP status
+	  is an error, to avoid "Unable to create/modify CUPS queue
+	  (Success)" and infinite repetition of a succeeded operation
+	  (Debian bug #852436).
 
 CHANGES IN V1.13.3
 
