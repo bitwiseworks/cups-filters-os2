@@ -54,7 +54,7 @@ static int pdf_count_pages(const char *filename)
 
     FILE *pd = popen(gscommand, "r");
     if (!pd)
-      rip_die(EXIT_STARVED, "Failed to execute ghostscript to determine number of input pages!\n");
+      rip_die(EXIT_STARVED, "Failed to execute ghostscript to determine number of input pages! rc=%d (%s)\n", errno, strerror(errno));
 
     bytes = fread(output, 1, 31, pd);
     pclose(pd);
