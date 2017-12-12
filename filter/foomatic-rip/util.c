@@ -50,6 +50,15 @@ const char * temp_dir()
         }
         if (tmpdir)
         {
+#ifdef __OS2__ // ghostscript doesn't work with backslash, so we need slash
+            char *p;
+            p = tmpdir;
+            while (*p != '\0') {
+                if (*p == '\\')
+                    *p = '/';
+                p++;
+            }
+#endif
             _log("Storing temporary files in %s\n", tmpdir);
             setenv("TMPDIR", tmpdir, 1); /* for child processes */
         }
