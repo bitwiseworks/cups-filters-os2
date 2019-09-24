@@ -6,6 +6,7 @@ pkgconf_DATA = \
 	libfontembed.pc
 
 doc_DATA = \
+	ABOUT-NLS \
 	AUTHORS \
 	COPYING \
 	NEWS \
@@ -15,12 +16,26 @@ doc_DATA = \
 EXTRA_DIST = \
 	$(doc_DATA) \
 	autogen.sh \
+	config.rpath \
 	libcupsfilters.pc.in \
 	libfontembed.pc.in \
 	utils/cups-browsed.service \
 	utils/cups-browsed-upstart.conf \
 	filter/braille/drivers/index/ubrlto4dot.c \
 	filter/braille/filters/TODO.txt
+
+EXTRA_DIST += \
+	cupsfilters/kmdevices.cpp \
+	cupsfilters/kmdevices.h \
+	cupsfilters/testdriver.c \
+	data/makePDFfromPS.sh \
+	data/classified.ps \
+	data/confidential.ps \
+	data/secret.ps \
+	data/standard.ps \
+	data/topsecret.ps \
+	data/unclassified.ps \
+	drv/custom-media-lines
 
 # ========
 # Backends
@@ -55,8 +70,10 @@ beh_CFLAGS = $(CUPS_CFLAGS)
 implicitclass_SOURCES = \
 	backend/backend-private.h \
 	backend/implicitclass.c
-implicitclass_LDADD = $(CUPS_LIBS)
-implicitclass_CFLAGS = $(CUPS_CFLAGS)
+implicitclass_LDADD = $(CUPS_LIBS)\
+	libcupsfilters.la
+implicitclass_CFLAGS = $(CUPS_CFLAGS)\
+	 -I$(srcdir)/cupsfilters/
 
 test1284_SOURCES = \
 	backend/backend-private.h \
@@ -65,12 +82,21 @@ test1284_SOURCES = \
 test1284_LDADD = $(CUPS_LIBS)
 test1284_CFLAGS = $(CUPS_CFLAGS)
 
+if ENABLE_BRAILLE
+pkgbackend_PROGRAMS += cups-brf
+endif
+
+cups_brf_SOURCES = \
+	backend/cups-brf.c
+
 # ==============
 # PPD Generators
 # ==============
-if ENABLE_DRIVERLESS
 pkgppdgendir = $(CUPS_SERVERBIN)/driver
+
+if ENABLE_DRIVERLESS
 pkgppdgen_PROGRAMS = driverless
+endif
 
 driverless_SOURCES = \
 	utils/driverless.c
@@ -81,15 +107,14 @@ driverless_CXXFLAGS = $(driverless_CFLAGS)
 driverless_LDADD = \
 	$(CUPS_LIBS) \
 	libcupsfilters.la
-endif
 
 # =======
 # Banners
 # =======
 pkgbannerdir = $(CUPS_DATADIR)/banners
 pkgbanner_DATA =
-if ENABLE_POPPLER
-pkgbanner_DATA += \
+
+bannerfiles = \
 	banners/classified \
 	banners/confidential \
 	banners/secret \
@@ -97,8 +122,10 @@ pkgbanner_DATA += \
 	banners/form \
 	banners/topsecret \
 	banners/unclassified
-endif
-EXTRA_DIST += $(pkgbanner_DATA)
+
+pkgbanner_DATA += $(bannerfiles)
+
+EXTRA_DIST += $(bannerfiles)
 
 # ========
 # Charsets
@@ -120,7 +147,8 @@ pkgfiltersinclude_DATA = \
 	cupsfilters/driver.h \
 	cupsfilters/image.h \
 	cupsfilters/raster.h \
-	cupsfilters/ppdgenerator.h
+	cupsfilters/ppdgenerator.h \
+	cupsfilters/pdftoippprinter.h
 
 lib_LTLIBRARIES = libcupsfilters.la
 
@@ -153,6 +181,7 @@ libcupsfilters_la_SOURCES = \
 	cupsfilters/colormanager.c \
 	cupsfilters/dither.c \
 	cupsfilters/image.c \
+	cupsfilters/pdftoippprinter.c \
 	cupsfilters/image-bmp.c \
 	cupsfilters/image-colorspace.c \
 	cupsfilters/image-gif.c \
@@ -266,35 +295,49 @@ pkgcupsserverroot_DATA = \
 # Drivers
 # =======
 pkgdriverdir = $(CUPS_DATADIR)/drv
-pkgdriver_DATA = \
+
+gendrvfiles = \
 	drv/cupsfilters.drv
-if ENABLE_BRAILLE
-pkgdriver_DATA += \
+pkgdriver_DATA = $(gendrvfiles)
+
+brldrvfiles = \
 	drv/generic-brf.drv \
+	drv/generic-ubrl.drv \
 	drv/indexv3.drv \
 	drv/indexv4.drv
+if ENABLE_BRAILLE
+pkgdriver_DATA += $(brldrvfiles)
 endif
 
-EXTRA_DIST += $(pkgdriver_DATA)
+EXTRA_DIST += $(gendrvfiles) $(brldrvfiles)
 
 # =======
 # Definitions for drivers
 # =======
 pkgppdcdir = $(CUPS_DATADIR)/ppdc
-pkgppdc_DATA = \
+
+genppdcfiles = \
 	filter/pcl.h \
 	filter/escp.h
-if ENABLE_BRAILLE
+pkgppdc_DATA = $(genppdcfiles)
+
 GENERATED_LIBLOUIS = \
-	filter/braille/filters/liblouis2.defs \
 	filter/braille/filters/liblouis3.defs \
 	filter/braille/filters/liblouis4.defs
-GENERATED_DEFS=	\
+GENERATED_DEFS = \
 	filter/braille/filters/liblouis1.defs \
+	filter/braille/filters/liblouis2.defs \
 	$(GENERATED_LIBLOUIS)
 
 filter/braille/filters/liblouis1.defs: filter/braille/filters/liblouis1.defs.gen
 	$< > $@
+
+filter/braille/filters/liblouis2.defs: filter/braille/filters/liblouis1.defs
+	sed -e "s/Braille transcription/Additional Braille transcription (2)/" \
+	    -e "s/^  \\*Choice /  Choice /" \
+	    -e "s/^  Choice \"HyphLocale\//  *Choice \"HyphLocale\//" \
+	    -e s/LibLouis/LibLouis2/ \
+	    < $< > $@
 
 $(GENERATED_LIBLOUIS): filter/braille/filters/liblouis%.defs: filter/braille/filters/liblouis1.defs
 	sed -e "s/Braille transcription/Additional Braille transcription ($*)/" \
@@ -303,46 +346,66 @@ $(GENERATED_LIBLOUIS): filter/braille/filters/liblouis%.defs: filter/braille/fil
 	    -e s/LibLouis/LibLouis$*/ \
 	    < $< > $@
 
-pkgppdc_DATA += \
+brlppdcfiles = \
 	filter/braille/drivers/common/media-braille.defs \
 	filter/braille/drivers/index/index.defs \
 	filter/braille/filters/braille.defs \
 	filter/braille/filters/imagemagick.defs \
-	filter/braille/filters/liblouis1.defs.gen.in \
 	filter/braille/filters/liblouis.defs \
 	filter/braille/drivers/common/fr-braille.po
+
+if ENABLE_BRAILLE
+pkgppdc_DATA += $(brlppdcfiles)
 nodist_pkgppdc_DATA = \
-	$(GENERATED_LIBLOUIS)
+	$(GENERATED_DEFS)
 endif
 
-EXTRA_DIST += $(pkgppdc_DATA)
+EXTRA_DIST += \
+	filter/braille/filters/liblouis1.defs.gen.in \
+	$(genppdcfiles) \
+	$(brlppdcfiles)
 
 # =====
 # MIMEs
 # =====
 pkgmimedir = $(CUPS_DATADIR)/mime
-pkgmime_DATA = \
-	mime/cupsfilters.convs \
+
+genmimefiles = \
 	mime/cupsfilters.types
-if ENABLE_POPPLER
-pkgmime_DATA += \
+pkgmime_DATA = \
+	$(genmimefiles) \
+	mime/cupsfilters.convs
+
+popplermimefiles = \
 	mime/cupsfilters-poppler.convs
+if ENABLE_POPPLER
+pkgmime_DATA += $(popplermimefiles)
 endif
-if ENABLE_GHOSTSCRIPT
-pkgmime_DATA += \
+gsmimefiles = \
 	mime/cupsfilters-ghostscript.convs
+if ENABLE_GHOSTSCRIPT
+pkgmime_DATA += $(gsmimefiles)
 endif
-if ENABLE_MUTOOL
-pkgmime_DATA += \
+mutoolmimefiles = \
 	mime/cupsfilters-mupdf.convs
-endif
-if ENABLE_BRAILLE
-pkgmime_DATA += \
-	mime/braille.convs \
-	mime/braille.types
+if ENABLE_MUTOOL
+pkgmime_DATA += $(mutoolmimefiles)
 endif
 
-EXTRA_DIST += $(pkgmime_DATA)
+brlmimefiles = \
+	mime/braille.convs \
+	mime/braille.types
+if ENABLE_BRAILLE
+pkgmime_DATA += $(brlmimefiles)
+endif
+
+EXTRA_DIST += \
+	$(genmimefiles) \
+	$(popplermimefiles) \
+	$(gsmimefiles) \
+	$(mutoolmimefiles) \
+	$(brlmimefiles) \
+	mime/cupsfilters.convs.in
 
 # =================
 # Braille aux files
@@ -423,61 +486,7 @@ EXTRA_DIST += \
 	fontembed/README
 
 pkgfilter_PROGRAMS =
-
-# ===========
-# PDF to OPVP
-# ===========
 pkgfilterdir = $(CUPS_SERVERBIN)/filter
-if ENABLE_POPPLER
-pkgfilter_PROGRAMS += \
-	pdftoopvp
-endif
-
-pkgfontconfigdir = $(sysconfdir)/$(FONTDIR)
-pkgfontconfig_DATA = filter/pdftoopvp/99pdftoopvp.conf
-
-pdftoopvp_SOURCES = \
-	filter/pdftoopvp/oprs/OPRS.cxx \
-	filter/pdftoopvp/oprs/OPRS.h \
-	filter/pdftoopvp/oprs/OPVPSplashClip.cxx \
-	filter/pdftoopvp/oprs/OPVPSplashClip.h \
-	filter/pdftoopvp/oprs/OPVPSplash.cxx \
-	filter/pdftoopvp/oprs/OPVPSplash.h \
-	filter/pdftoopvp/oprs/OPVPSplashPath.cxx \
-	filter/pdftoopvp/oprs/OPVPSplashPath.h \
-	filter/pdftoopvp/oprs/OPVPSplashState.cxx \
-	filter/pdftoopvp/oprs/OPVPSplashState.h \
-	filter/pdftoopvp/oprs/OPVPSplashXPath.cxx \
-	filter/pdftoopvp/oprs/OPVPSplashXPath.h \
-	filter/pdftoopvp/oprs/OPVPWrapper.cxx \
-	filter/pdftoopvp/oprs/OPVPWrapper.h \
-	filter/pdftoopvp/oprs/OPVPWrapper_0_2.cxx \
-	filter/pdftoopvp/oprs/OPVPWrapper_0_2.h \
-	filter/pdftoopvp/OPVPError.h \
-	filter/pdftoopvp/opvp/opvp_common.h \
-	filter/pdftoopvp/opvp/opvp.h \
-	filter/pdftoopvp/opvp/opvp_0_2_0.h \
-	filter/pdftoopvp/OPVPOutputDev.cxx \
-	filter/pdftoopvp/OPVPOutputDev.h \
-	filter/pdftoopvp/pdftoopvp.cxx
-pdftoopvp_CFLAGS = \
-	$(CUPS_CFLAGS) \
-	$(FREETYPE_CFLAGS) \
-	$(FONTCONFIG_CFLAGS) \
-	$(LIBPNG_CFLAGS) \
-	$(POPPLER_CFLAGS) \
-	-I$(srcdir)/filter/pdftoopvp/oprs \
-	-I$(srcdir)/filter/pdftoopvp/opvp
-pdftoopvp_CXXFLAGS = $(pdftoopvp_CFLAGS)
-pdftoopvp_LDADD = \
-	$(CUPS_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(FONTCONFIG_LIBS) \
-	$(LIBPNG_LIBS) \
-	$(POPPLER_LIBS) \
-	$(DLOPEN_LIBS)
-
-EXTRA_DIST += $(pkgfontconfig_DATA)
 
 # ==========
 # PDF to PDF 
@@ -517,14 +526,16 @@ pdftopdf_LDADD = \
 # ======================
 # Simple filter binaries
 # ======================
-pkgfilter_SCRIPTS = \
+genfilterscripts = \
 	filter/imagetops \
 	filter/texttops  \
 	filter/rastertopclm
-if ENABLE_GHOSTSCRIPT
-pkgfilter_SCRIPTS += \
+pkgfilter_SCRIPTS = $(genfilterscripts)
+gsfilterscripts = \
 	filter/gstopxl \
 	filter/gstopdf
+if ENABLE_GHOSTSCRIPT
+pkgfilter_SCRIPTS += $(gsfilterscripts)
 endif
 if ENABLE_BRAILLE
 nodist_pkgfilter_SCRIPTS = \
@@ -533,8 +544,13 @@ nodist_pkgfilter_SCRIPTS = \
 	filter/braille/drivers/index/imageubrltoindexv4 \
 	filter/braille/drivers/index/textbrftoindexv3 \
 	filter/braille/filters/imagetobrf \
-	filter/braille/filters/texttobrf
+	filter/braille/filters/vectortopdf \
+	filter/braille/filters/vectortobrf \
+	filter/braille/filters/texttobrf \
+	filter/braille/filters/brftopagedbrf \
+	filter/braille/filters/musicxmltobrf
 endif
+
 pkgfilter_PROGRAMS += \
 	commandtoescpx \
 	commandtopclx \
@@ -545,6 +561,7 @@ pkgfilter_PROGRAMS += \
 	rastertopclx \
 	texttopdf \
 	rastertopdf \
+	bannertopdf \
 	rastertops
 if ENABLE_URFTOPDF
 pkgfilter_PROGRAMS += \
@@ -552,12 +569,7 @@ pkgfilter_PROGRAMS += \
 endif
 if ENABLE_POPPLER
 pkgfilter_PROGRAMS += \
-	bannertopdf \
 	pdftoraster
-if ENABLE_IJS
-pkgfilter_PROGRAMS += \
-	pdftoijs
-endif
 endif
 if ENABLE_GHOSTSCRIPT
 pkgfilter_PROGRAMS += \
@@ -585,6 +597,14 @@ TESTS += \
 	test_pdf1 \
 	test_pdf2
 
+# Not reliable bash script
+#TESTS += filter/test.sh
+
+EXTRA_DIST += \
+	$(genfilterscripts) \
+	$(gsfilterscripts) \
+	filter/test.sh
+
 bannertopdf_SOURCES = \
 	filter/banner.c \
 	filter/banner.h \
@@ -598,7 +618,7 @@ bannertopdf_CFLAGS = \
 	$(CUPS_CFLAGS) \
 	$(LIBJPEG_CFLAGS) \
 	$(LIBPNG_CFLAGS) \
-	$(POPPLER_CFLAGS) \
+	$(LIBQPDF_CFLAGS) \
 	$(TIFF_CFLAGS) \
 	$(FONTCONFIG_CFLAGS) \
 	-I$(srcdir)/fontembed/
@@ -609,7 +629,7 @@ bannertopdf_LDADD = \
 	$(CUPS_LIBS) \
 	$(LIBJPEG_LIBS) \
 	$(LIBPNG_LIBS) \
-	$(POPPLER_LIBS) \
+	$(LIBQPDF_LIBS) \
 	$(TIFF_LIBS) \
 	$(FONTCONFIG_LIBS) \
 	libfontembed.la
@@ -656,6 +676,7 @@ foomatic_rip_SOURCES = \
 	cupsfilters/colord.h
 foomatic_rip_CFLAGS = \
 	-DCONFIG_PATH='"$(sysconfdir)/foomatic"' \
+	$(CUPS_CFLAGS) \
 	-I$(srcdir)/cupsfilters/
 foomatic_rip_LDADD = \
 	$(CUPS_LIBS) \
@@ -706,7 +727,6 @@ imagetoraster_LDADD = \
 	-lm \
 	libcupsfilters.la
 
-if ENABLE_URFTOPDF
 urftopdf_SOURCES = \
 	filter/urftopdf.cpp \
 	filter/unirast.h
@@ -714,7 +734,6 @@ urftopdf_CXXFLAGS = \
 	$(LIBQPDF_CFLAGS)
 urftopdf_LDADD = \
 	$(LIBQPDF_LIBS)
-endif
 
 rastertopdf_SOURCES = \
 	filter/rastertopdf.cpp
@@ -748,19 +767,6 @@ rastertops_LDADD = \
 	-lz \
 	libcupsfilters.la
 
-pdftoijs_SOURCES = \
-	filter/pdftoijs.cxx \
-	filter/PDFError.h
-pdftoijs_CFLAGS = \
-	$(CUPS_CFLAGS) \
-	$(IJS_CFLAGS) \
-	$(POPPLER_CFLAGS)
-pdftoijs_CXXFLAGS = $(pdftoijs_CFLAGS)
-pdftoijs_LDADD = \
-	$(CUPS_LIBS) \
-	$(IJS_LIBS) \
-	$(POPPLER_LIBS)
-
 sys5ippprinter_SOURCES = \
 	filter/common.c \
 	filter/common.h \
@@ -774,7 +780,7 @@ texttotext_SOURCES = \
 	filter/texttotext.c
 EXTRA_texttotext_SOURCES = filter/strcasestr.c
 texttotext_CFLAGS = $(CUPS_CFLAGS)
-texttotext_LDADD = $(STRCASESTR) $(CUPS_LIBS)
+texttotext_LDADD = $(STRCASESTR) $(CUPS_LIBS) $(LIBICONV)
 texttotext_DEPENDENCIES = $(STRCASESTR)
 
 pdftops_SOURCES = \
@@ -787,8 +793,7 @@ pdftops_LDADD = $(STRCASESTR) $(CUPS_LIBS)
 pdftops_DEPENDENCIES = $(STRCASESTR)
 
 pdftoraster_SOURCES = \
-	filter/pdftoraster.cxx \
-	filter/PDFError.h
+	filter/pdftoraster.cxx
 pdftoraster_CFLAGS = \
 	$(CUPS_CFLAGS) \
 	$(LCMS_CFLAGS) \
@@ -873,13 +878,6 @@ texttopdf_LDADD = \
 	$(FONTCONFIG_LIBS) \
 	libfontembed.la
 
-# Not reliable bash script
-#TESTS += filter/test.sh
-
-EXTRA_DIST += \
-	$(pkgfilter_SCRIPTS) \
-	filter/test.sh
-
 # =====
 # UTILS
 # =====
@@ -920,44 +918,49 @@ cups_browsed_LDADD = \
 	libcupsfilters.la
 initrcdir = $(INITDDIR)
 initrc_SCRIPTS = utils/cups-browsed
-man_MANS = \
+
+cupsbrowsedmanpages = \
 	utils/cups-browsed.8 \
 	utils/cups-browsed.conf.5
+man_MANS = $(cupsbrowsedmanpages)
+driverlessmanpages = \
+	utils/driverless.1
 if ENABLE_DRIVERLESS
-man_MANS += utils/driverless.1
+man_MANS += $(driverlessmanpages)
 endif
-if ENABLE_FOOMATIC
-man_MANS += \
+foomaticmanpages = \
 	filter/foomatic-rip/foomatic-rip.1
+if ENABLE_FOOMATIC
+man_MANS += $(foomaticmanpages)
 endif
 EXTRA_DIST += utils/cups-browsed.in \
-	$(man_MANS) \
+	$(cupsbrowsedmanpages) \
+	$(driverlessmanpages) \
+	filter/foomatic-rip/foomatic-rip.1.in \
 	utils/org.cups.cupsd.Notifier.xml
 BUILT_SOURCES = $(cups_notifier_sources)
-CLEANFILES = $(BUILT_SOURCES)
+CLEANFILES = $(BUILT_SOURCES) $(GENERATED_DEFS)
 
 # ===
 # PPD
 # ===
 ppddir = $(datadir)/ppd/cupsfilters
-ppd_DATA = \
+genppdfiles = \
 	ppd/Fuji_Xerox-DocuPrint_CM305_df-PDF.ppd \
 	ppd/Generic-PDF_Printer-PDF.ppd \
 	ppd/HP-Color_LaserJet_CM3530_MFP-PDF.ppd \
 	ppd/Ricoh-PDF_Printer-PDF.ppd
-if ENABLE_POPPLER
-if ENABLE_IJS
-ppd_DATA += \
-	ppd/HP-PhotoSmart_Pro_B8300-hpijs-pdftoijs.ppd
-endif
-endif
-if ENABLE_GHOSTSCRIPT
-ppd_DATA += \
+ppd_DATA = $(genppdfiles)
+gsppdfiles = \
 	ppd/pxlcolor.ppd \
 	ppd/pxlmono.ppd
+if ENABLE_GHOSTSCRIPT
+ppd_DATA += $(gsppdfiles)
 endif
 
-EXTRA_DIST += $(ppd_DATA)
+EXTRA_DIST += \
+	$(genppdfiles) \
+	$(gsppdfiles)
 
 # =========
 # Scripting
@@ -965,13 +968,14 @@ EXTRA_DIST += $(ppd_DATA)
 if WITH_PHP
 phpextensiondir = $(PHPDIR)
 phpextension_LTLIBRARIES = libphpcups.la
+endif
+
 libphpcups_la_SOURCES = \
 	scripting/php/phpcups.c \
 	scripting/php/phpcups.h
 libphpcups_la_LIBADD = $(CUPS_LIBS)
 libphpcups_la_CFLAGS = $(CUPS_CFLAGS)
 libphpcups_la_LDFLAGS = -no-undefined
-endif # WITH_PHP
 
 EXTRA_DIST += \
 	scripting/perl \
@@ -986,14 +990,21 @@ install-exec-hook:
 	$(INSTALL) -d -m 755 $(DESTDIR)$(pkgfilterdir)
 	$(INSTALL) -d -m 755 $(DESTDIR)$(pkgbackenddir)
 if ENABLE_FOOMATIC
-	$(LN_S) -r -f $(DESTDIR)$(pkgfilterdir)/foomatic-rip $(DESTDIR)$(bindir)
+	$(LN_SRF) $(DESTDIR)$(pkgfilterdir)/foomatic-rip $(DESTDIR)$(bindir)
 endif
 if ENABLE_DRIVERLESS
-	$(LN_S) -r -f $(DESTDIR)$(pkgppdgendir)/driverless $(DESTDIR)$(bindir)
-	$(LN_S) -r -f $(DESTDIR)$(pkgppdgendir)/driverless $(DESTDIR)$(pkgbackenddir)
+	$(LN_SRF) $(DESTDIR)$(pkgppdgendir)/driverless $(DESTDIR)$(bindir)
+	$(LN_SRF) $(DESTDIR)$(pkgppdgendir)/driverless $(DESTDIR)$(pkgbackenddir)
 endif
 if ENABLE_BRAILLE
 	$(LN_S) -f imagetobrf $(DESTDIR)$(pkgfilterdir)/imagetoubrl
+	$(LN_S) -f vectortopdf $(DESTDIR)$(pkgfilterdir)/svgtopdf
+	$(LN_S) -f vectortopdf $(DESTDIR)$(pkgfilterdir)/xfigtopdf
+	$(LN_S) -f vectortopdf $(DESTDIR)$(pkgfilterdir)/wmftopdf
+	$(LN_S) -f vectortopdf $(DESTDIR)$(pkgfilterdir)/emftopdf
+	$(LN_S) -f vectortopdf $(DESTDIR)$(pkgfilterdir)/cgmtopdf
+	$(LN_S) -f vectortopdf $(DESTDIR)$(pkgfilterdir)/cmxtopdf
+	$(LN_S) -f vectortobrf $(DESTDIR)$(pkgfilterdir)/vectortoubrl
 	$(LN_S) -f textbrftoindexv3 $(DESTDIR)$(pkgfilterdir)/textbrftoindexv4
 endif
 
@@ -1009,6 +1020,9 @@ if RCLINKS
 endif
 	$(LN_S) -f pdf.utf-8.simple \
 		$(DESTDIR)$(pkgcharsetdir)/pdf.utf-8
+if ENABLE_BRAILLE
+	chmod g-wx,o-wx $(DESTDIR)/$(pkgbackenddir)/cups-brf
+endif
 
 
 uninstall-hook:
@@ -1028,5 +1042,14 @@ if ENABLE_DRIVERLESS
 endif
 if ENABLE_BRAILLE
 	$(RM) $(DESTDIR)$(pkgfilterdir)/imagetoubrl
+	$(RM) $(DESTDIR)$(pkgfilterdir)/svgtopdf
+	$(RM) $(DESTDIR)$(pkgfilterdir)/xfigtopdf
+	$(RM) $(DESTDIR)$(pkgfilterdir)/wmftopdf
+	$(RM) $(DESTDIR)$(pkgfilterdir)/emftopdf
+	$(RM) $(DESTDIR)$(pkgfilterdir)/cgmtopdf
+	$(RM) $(DESTDIR)$(pkgfilterdir)/cmxtopdf
+	$(RM) $(DESTDIR)$(pkgfilterdir)/vectortoubrl
 	$(RM) $(DESTDIR)$(pkgfilterdir)/textbrftoindexv4
 endif
+
+SUBDIRS =

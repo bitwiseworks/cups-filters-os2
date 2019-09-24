@@ -3,6 +3,7 @@
 // Copyright (c) 2006-2011, BBR Inc.  All rights reserved.
 // MIT Licensed.
 
+#include <config.h>
 #include <stdio.h>
 #include <assert.h>
 #include <cups/cups.h>
@@ -16,6 +17,10 @@
 #include <iomanip>
 #include <sstream>
 #include <memory>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "pdftopdf_processor.h"
 #include "pdftopdf_jcl.h"
@@ -159,9 +164,9 @@ static bool ppdDefaultOrder(ppd_file_t *ppd) // {{{  -- is reverse?
   } else if ((attr=ppdFindAttr(ppd,"DefaultOutputOrder",0)) != NULL) {
     val=attr->value;
   }
-  if ((!val)||(strcasecmp(val,"Normal")==0)) {
+  if ((!val)||(strcasecmp(val,"Normal")==0)||(strcasecmp(val,"same-order")==0)) {
     return false;
-  } else if (strcasecmp(val,"Reverse")==0) {
+  } else if (strcasecmp(val,"Reverse")==0||(strcasecmp(val,"reverse-order")==0)) {
     return true;
   }
   error("Unsupported output-order value %s, using 'normal'!",val);
@@ -313,6 +318,25 @@ void getParameters(ppd_file_t *ppd,int num_options,cups_option_t *options,Proces
     param.numCopies=1;
   }
 
+  if((val = cupsGetOption("ipp-attribute-fidelity",num_options,options))!=NULL) {
+    if(!strcasecmp(val,"true")||!strcasecmp(val,"yes") ||
+      !strcasecmp(val,"on"))
+      param.fidelity = true;
+  }
+
+  if((val = cupsGetOption("print-scaling",num_options,options)) != NULL) {
+    if(!strcasecmp(val,"auto"))
+      param.autoprint = true;
+    else if(!strcasecmp(val,"auto-fit"))
+      param.autofit = true;
+    else if(!strcasecmp(val,"fill"))
+      param.fillprint = true;
+    else if(!strcasecmp(val,"fit"))
+      param.fitplot = true;
+    else
+      param.cropfit = true;
+  }
+  else {
   if ((val=cupsGetOption("fitplot",num_options,options)) == NULL) {
     if ((val=cupsGetOption("fit-to-page",num_options,options)) == NULL) {
       val=cupsGetOption("ipp-attribute-fidelity",num_options,options);
@@ -320,6 +344,20 @@ void getParameters(ppd_file_t *ppd,int num_options,cups_option_t *options,Proces
   }
   // TODO?  pstops checks =="true", pdftops !is_false  ... pstops says: fitplot only for PS (i.e. not for PDF, cmp. cgpdftopdf)
   param.fitplot=(val)&&(!is_false(val));
+
+  if((val = cupsGetOption("fill",num_options,options))!=0) {
+    if(!strcasecmp(val,"true")||!strcasecmp(val,"yes"))
+    {
+      param.fillprint = true;
+    }
+  }
+  if((val = cupsGetOption("crop-to-fit",num_options,options))!= NULL){
+    if(!strcasecmp(val,"true")||!strcasecmp(val,"yes"))
+    {
+      param.cropfit=1;
+    }
+  }
+  }
 
   if (ppd && (ppd->landscape < 0)) { // direction the printer rotates landscape (90 or -90)
     param.normal_landscape=ROT_270;
@@ -343,6 +381,8 @@ void getParameters(ppd_file_t *ppd,int num_options,cups_option_t *options,Proces
       static const Rotation ipp2rot[4]={ROT_0, ROT_90, ROT_270, ROT_180};
       param.orientation=ipp2rot[ipprot-3];
     }
+  } else {
+    param.noOrientation = true;
   }
 
   ppd_size_t *pagesize;
@@ -460,8 +500,10 @@ void getParameters(ppd_file_t *ppd,int num_options,cups_option_t *options,Proces
   }
 
   if ((val=cupsGetOption("OutputOrder",num_options,options)) != NULL ||
+      (val=cupsGetOption("output-order",num_options,options)) != NULL ||
       (val=cupsGetOption("page-delivery",num_options,options)) != NULL) {
-    param.reverse=(strcasecmp(val,"Reverse")==0);
+    param.reverse = (strcasecmp(val, "Reverse") == 0 ||
+		     strcasecmp(val, "reverse-order") == 0);
   } else if (ppd) {
     param.reverse=ppdDefaultOrder(ppd);
   }
@@ -552,7 +594,7 @@ void getParameters(ppd_file_t *ppd,int num_options,cups_option_t *options,Proces
 
   if ((val = cupsGetOption("scaling",num_options,options)) != 0) {
     scaling = atoi(val) * 0.01;
-    fitplot = gTrue;
+    fitplot = true;
   } else if (fitplot) {
     scaling = 1.0;
   }
@@ -763,17 +805,9 @@ static bool printerWillCollate(ppd_file_t *ppd) // {{{
 
 void calculate(ppd_file_t *ppd,ProcessingParameters &param) // {{{
 {
-  param.deviceReverse=false;
-  if (param.reverse) {
-    // test OutputOrder of hardware (ppd)
-    if (ppdFindOption(ppd,"OutputOrder") != NULL) {
-      param.deviceReverse=true;
-      param.reverse=false;
-    } else {
-      // Enable evenDuplex or the first page may be empty.
-      param.evenDuplex=true; // disabled later, if non-duplex
-    }
-  }
+  if (param.reverse)
+    // Enable evenDuplex or the first page may be empty.
+    param.evenDuplex=true; // disabled later, if non-duplex
 
   setFinalPPD(ppd,param);
 
@@ -784,11 +818,25 @@ void calculate(ppd_file_t *ppd,ProcessingParameters &param) // {{{
   } else if ((ppd)&&(!ppd->manual_copies)) { // hw copy generation available
     param.deviceCopies=param.numCopies;
     if (param.collate) { // collate requested by user
-      // check collate device, with current/final(!) ppd settings
-      param.deviceCollate=printerWillCollate(ppd);
-      if (!param.deviceCollate) {
-        // printer can't hw collate -> we must copy collated in sw
-        param.deviceCopies=1;
+      // Check output format (FINAL_CONTENT_TYPE env variable) whether it is
+      // of a driverless IPP printer (PDF, Apple Raster, PWG Raster, PCLm).
+      // These printers do always hardware collate if they do hardware copies.
+      // https://github.com/apple/cups/issues/5433
+      char *final_content_type = getenv("FINAL_CONTENT_TYPE");
+      if (final_content_type &&
+	  (strcasestr(final_content_type, "/pdf") ||
+	   strcasestr(final_content_type, "/vnd.cups-pdf") ||
+	   strcasestr(final_content_type, "/pwg-raster") ||
+	   strcasestr(final_content_type, "/urf") ||
+	   strcasestr(final_content_type, "/PCLm"))) {
+	param.deviceCollate = true;
+      } else {
+	// check collate device, with current/final(!) ppd settings
+	param.deviceCollate=printerWillCollate(ppd);
+	if (!param.deviceCollate) {
+	  // printer can't hw collate -> we must copy collated in sw
+	  param.deviceCopies=1;
+	}
       }
     } // else: printer copies w/o collate and takes care of duplex/evenDuplex
   } else { // sw copies
@@ -821,7 +869,6 @@ void calculate(ppd_file_t *ppd,ProcessingParameters &param) // {{{
 // }}}
 
 // reads from stdin into temporary file. returns FILE *  or NULL on error
-// TODO? to extra file (also used in pdftoijs, e.g.)
 FILE *copy_stdin_to_temp() // {{{
 {
   char buf[BUFSIZ];
@@ -860,6 +907,136 @@ FILE *copy_stdin_to_temp() // {{{
 }
 // }}}
 
+static int
+sub_process_spawn (const char *filename,
+          cups_array_t *sub_process_args,
+          FILE *fp) // {{{
+{
+  char *argument;
+  char buf[BUFSIZ];
+  char **sub_process_argv;
+  const char* apos;
+  int fds[2];
+  int i;
+  int n;
+  int numargs;
+  int pid;
+  int status = 65536;
+  int wstatus;
+
+  /* Put sub-process command line argument into an array for the "exec()"
+     call */
+  numargs = cupsArrayCount(sub_process_args);
+  sub_process_argv = (char **)calloc(numargs + 1, sizeof(char *));
+  for (argument = (char *)cupsArrayFirst(sub_process_args), i = 0; argument;
+       argument = (char *)cupsArrayNext(sub_process_args), i++) {
+    sub_process_argv[i] = argument;
+  }
+  sub_process_argv[i] = NULL;
+
+  /* Debug output: Full sub-process command line */
+  fprintf(stderr, "DEBUG: PDF form flattening command line:");
+  for (i = 0; sub_process_argv[i]; i ++) {
+    if ((strchr(sub_process_argv[i],' ')) || (strchr(sub_process_argv[i],'\t')))
+      apos = "'";
+    else
+      apos = "";
+    fprintf(stderr, " %s%s%s", apos, sub_process_argv[i], apos);
+  }
+  fprintf(stderr, "\n");
+
+  /* Create a pipe for feeding the job into sub-process */
+  if (pipe(fds))
+  {
+    fds[0] = -1;
+    fds[1] = -1;
+    fprintf(stderr, "ERROR: Unable to establish pipe for sub-process call\n");
+    goto out;
+  }
+
+  /* Set the "close on exec" flag on each end of the pipe... */
+  if (fcntl(fds[0], F_SETFD, fcntl(fds[0], F_GETFD) | FD_CLOEXEC))
+  {
+    close(fds[0]);
+    close(fds[1]);
+    fds[0] = -1;
+    fds[1] = -1;
+    fprintf(stderr, "ERROR: Unable to set \"close on exec\" flag on read end of the pipe for sub-process call\n");
+    goto out;
+  }
+  if (fcntl(fds[1], F_SETFD, fcntl(fds[1], F_GETFD) | FD_CLOEXEC))
+  {
+    close(fds[0]);
+    close(fds[1]);
+    fprintf(stderr, "ERROR: Unable to set \"close on exec\" flag on write end of the pipe for sub-process call\n");
+    goto out;
+  }
+
+  if ((pid = fork()) == 0)
+  {
+    /* Couple pipe with STDIN of sub-process */
+    if (fds[0] != 0) {
+      close(0);
+      if (fds[0] > 0) {
+        if (dup(fds[0]) < 0) {
+	  fprintf(stderr, "ERROR: Unable to couple pipe with STDIN of sub-process\n");
+	  goto out;
+	}
+      } else {
+        fprintf(stderr, "ERROR: Unable to couple pipe with STDIN of sub-process\n");
+        goto out;
+      }
+    }
+    close(fds[1]);
+
+    /* Execute sub-process command line ... */
+    execvp(filename, sub_process_argv);
+    perror(filename);
+    close(fds[0]);
+    goto out;
+  }
+
+  close(fds[0]);
+  /* Feed job data into the sub-process */
+  while ((n = fread(buf, 1, BUFSIZ, fp)) > 0) {
+    int count;
+retry_write:
+    count = write(fds[1], buf, n);
+    if (count != n) {
+      if (count == -1) {
+        if (errno == EINTR) {
+          goto retry_write;
+	}
+        fprintf(stderr, "ERROR: write failed: %s\n", strerror(errno));
+      }
+      fprintf(stderr, "ERROR: Can't feed job data into the sub-process\n");
+      goto out;
+    }
+  }
+  close (fds[1]);
+
+retry_wait:
+  if (waitpid (pid, &wstatus, 0) == -1) {
+    if (errno == EINTR)
+      goto retry_wait;
+    perror ("sub-process");
+    goto out;
+  }
+
+  /* How did the sub-process terminate */
+  if (WIFEXITED(wstatus))
+    /* Via exit() anywhere or return() in the main() function */
+    status = WEXITSTATUS(wstatus);
+  else if (WIFSIGNALED(wstatus))
+    /* Via signal */
+    status = 256 * WTERMSIG(wstatus);
+
+out:
+  free(sub_process_argv);
+  return status;
+}
+// }}}
+
 int main(int argc,char **argv)
 {
   if ((argc<6)||(argc>7)) {
@@ -880,10 +1057,11 @@ int main(int argc,char **argv)
     param.nup.nupY=2;
     //param.nup.yalign=TOP;
     param.border=BorderType::NONE;
+    //param.fillprint = true;
     //param.mirror=true;
     //param.reverse=true;
     //param.numCopies=3;
-    if (!proc1->loadFilename("in.pdf")) return 2;
+    if (!proc1->loadFilename("in.pdf",1)) return 2;
     param.dump();
     if (!processPDFTOPDF(*proc1,param)) return 3;
     emitComment(*proc1,param);
@@ -920,23 +1098,156 @@ int main(int argc,char **argv)
     param.dump();
 #endif
 
+    /* Check with which method we will flatten interactive PDF forms
+       and annotations so that they get printed also after page
+       manipulations (scaling, N-up, ...). Flattening means to
+       integrate the filled in data and the printable annotations into
+       the pages themselves instead of holding them in an extra
+       layer. Default method is using QPDF, alternatives are the
+       external utilities pdftocairo or Ghostscript, but these make
+       the processing slower, especially due to extra piping of the
+       data between processes. */
+    int qpdf_flatten = 1;
+    int pdftocairo_flatten = 0;
+    int gs_flatten = 0;
+    int external_auto_flatten = 0;
+    const char	*val;
+    if ((val = cupsGetOption("pdftopdf-form-flattening", num_options, options)) != NULL) {
+      if (strcasecmp(val, "qpdf") == 0 || strcasecmp(val, "internal") == 0 ||
+	  strcasecmp(val, "auto") == 0) {
+	qpdf_flatten = 1;
+      } else if (strcasecmp(val, "external") == 0) {
+	qpdf_flatten = 0;
+	external_auto_flatten = 1;
+      } else if (strcasecmp(val, "pdftocairo") == 0) {
+	qpdf_flatten = 0;
+	pdftocairo_flatten = 1;
+      } else if (strcasecmp(val, "ghostscript") == 0 || strcasecmp(val, "gs") == 0) {
+	qpdf_flatten = 0;
+	gs_flatten = 1;
+      } else
+	fprintf(stderr,
+		"WARNING: Invalid value for \"pdftopdf-form-flattening\": \"%s\"\n", val);
+    }
+
     cupsFreeOptions(num_options,options);
 
     std::unique_ptr<PDFTOPDF_Processor> proc(PDFTOPDF_Factory::processor());
 
+    FILE *tmpfile = NULL;
     if (argc==7) {
-      if (!proc->loadFilename(argv[6])) {
+      if (!proc->loadFilename(argv[6],qpdf_flatten)) {
         ppdClose(ppd);
         return 1;
       }
     } else {
-      FILE *f=copy_stdin_to_temp();
-      if ((!f)||
-	  (!proc->loadFile(f,TakeOwnership))) {
+      tmpfile = copy_stdin_to_temp();
+      if ((!tmpfile)||
+	  (!proc->loadFile(tmpfile,WillStayAlive,qpdf_flatten))) {
         ppdClose(ppd);
         return 1;
       }
     }
+
+    /* If the input file contains a PDF form and we opted for not
+       using QPDF for flattening the form, we pipe the PDF through
+       pdftocairo or Ghostscript here */
+    if (!qpdf_flatten && proc->hasAcroForm()) {
+      /* Prepare the input file for being read by the form flattening
+	 process */
+      FILE *infile = NULL;
+      if (argc == 7) {
+	/* We read from a named file */
+	infile = fopen(argv[6], "r");
+      } else {
+	/* We read from a temporary file */
+	if (tmpfile) rewind(tmpfile);
+	infile = tmpfile;
+      }
+      if (infile == NULL) {
+	error("Could not open the input file for flattening the PDF form!");
+	return 1;
+      }
+      /* Create a temporary file for the output of the flattened PDF */
+      char buf[BUFSIZ];
+      int fd = cupsTempFd(buf,sizeof(buf));
+      if (fd<0) {
+	error("Can't create temporary file for flattened PDF form!");
+	return 1;
+      }
+      FILE *outfile = NULL;
+      if ((outfile=fdopen(fd,"rb")) == 0) {
+	error("Can't fdopen temporary file for the flattened PDF form!");
+	close(fd);
+	return 1;
+      }
+      int flattening_done = 0;
+      const char *command;
+      cups_array_t *args;
+      /* Choose the utility to be used and create its command line */
+      if (pdftocairo_flatten || external_auto_flatten) {
+	/* Try pdftocairo first, the preferred utility for form-flattening */
+	command = CUPS_POPPLER_PDFTOCAIRO;
+	args = cupsArrayNew(NULL, NULL);
+	cupsArrayAdd(args, strdup(command));
+	cupsArrayAdd(args, strdup("-pdf"));
+	cupsArrayAdd(args, strdup("-"));
+	cupsArrayAdd(args, strdup(buf));
+	/* Run the pdftocairo form flattening process */
+	rewind(infile);
+	int status = sub_process_spawn (command, args, infile);
+	cupsArrayDelete(args);
+	if (status == 0)
+	  flattening_done = 1;
+	else
+	  error("Unable to execute pdftocairo for form flattening!");
+      }
+      if (flattening_done == 0 &&
+	  (gs_flatten || external_auto_flatten)) {
+	/* Try Ghostscript */
+	command = CUPS_GHOSTSCRIPT;
+	args = cupsArrayNew(NULL, NULL);
+	cupsArrayAdd(args, strdup(command));
+	cupsArrayAdd(args, strdup("-dQUIET"));
+	cupsArrayAdd(args, strdup("-dPARANOIDSAFER"));
+	cupsArrayAdd(args, strdup("-dNOPAUSE"));
+	cupsArrayAdd(args, strdup("-dBATCH"));
+	cupsArrayAdd(args, strdup("-dNOINTERPOLATE"));
+	cupsArrayAdd(args, strdup("-dNOMEDIAATTRS"));
+	cupsArrayAdd(args, strdup("-sDEVICE=pdfwrite"));
+	cupsArrayAdd(args, strdup("-dShowAcroForm"));
+	cupsArrayAdd(args, strdup("-sstdout=%stderr"));
+	memmove(buf + 13, buf, sizeof(buf) - 13);
+	memcpy(buf, "-sOutputFile=", 13);
+	cupsArrayAdd(args, strdup(buf));
+	cupsArrayAdd(args, strdup("-"));
+	/* Run the Ghostscript form flattening process */
+	rewind(infile);
+	int status = sub_process_spawn (command, args, infile);
+	cupsArrayDelete(args);
+	if (status == 0)
+	  flattening_done = 1;
+	else
+	  error("Unable to execute Ghostscript for form flattening!");
+      }
+      if (flattening_done == 0) {
+	error("No suitable utility for flattening filled PDF forms available, no flattening performed. Filled in content will possibly not be printed.");
+	rewind(infile);
+      }
+      /* Clean up */
+      if (infile != tmpfile)
+	fclose(infile);
+      /* Load the flattened PDF file into our PDF processor */
+      if (flattening_done) {
+	rewind(outfile);
+	unlink(buf);
+	if (!proc->loadFile(outfile,TakeOwnership,0)) {
+	  error("Unable to create a PDF processor on the flattened form!"); 
+	  return 1;
+	}
+      }
+    } else if (qpdf_flatten)
+      fprintf(stderr, "DEBUG: PDF interactive form and annotation flattening done via QPDF\n");
 
 /* TODO
     // color management
@@ -964,6 +1275,8 @@ int main(int argc,char **argv)
 
     emitPostamble(ppd,param);
     ppdClose(ppd);
+    if (tmpfile)
+      fclose(tmpfile);
   } catch (std::exception &e) {
     // TODO? exception type
     error("Exception: %s",e.what());

@@ -1,4 +1,4 @@
-README - OpenPrinting CUPS Filters v1.17.2 - 2017-08-25
+README - OpenPrinting CUPS Filters v1.25.6 - 2019-09-23
 -------------------------------------------------------
 
 Looking for compile instructions?  Read the file "INSTALL.txt"
@@ -22,27 +22,28 @@ INTRODUCTION
     printers and IPP printers to make them available locally.
 
     From CUPS 1.6.0 on, this package is required for using printer
-    drivers (und also driverless printing) with CUPS under Linux. With
+    drivers (and also driverless printing) with CUPS under Linux. With
     CUPS 1.5.x and 1.4.x this package can be used optionally to switch
     over to PDF-based printing. In that case some filters are provided
     by both CUPS and this package. Then the filters of this package
     should be used.
 
-    For compiling and using this package CUPS, libqpdf, libjpeg,
-    libpng, libtiff, freetype, fontconfig, liblcms (liblcms2
-    recommended), libavahi-common, libavahi-client, libdbus, and glib
-    are needed. It is highly recommended, especially if non-PDF
-    printers are used, to have at least one of Ghostscript, Poppler,
-    or MuPDF. To print banner pages Poppler is needed.
+    For compiling and using this package CUPS, libqpdf (8.3.0 or
+    newer), libjpeg, libpng, libtiff, freetype, fontconfig, liblcms
+    (liblcms2 recommended), libavahi-common, libavahi-client, libdbus,
+    and glib are needed. It is highly recommended, especially if
+    non-PDF printers are used, to have at least one of Ghostscript,
+    Poppler, or MuPDF.
 
-    The Poppler-based filters need a C++ compiler which supports C++11
-    and Poppler being built with the "./configure" options
-    "--enable-splash --disable-fixedpoint --disable-single-precision"
-    (if in the actually used Poppler version such options are
-    available). This is the case for most modern Linux distributions.
+    The Poppler-based pdftoraster filter needs a C++ compiler which
+    supports C++11 and Poppler being built with the "./configure"
+    option "-DENABLE_CPP=ON" for building the C++ support library
+    libpoppler-cpp. This is the case for most modern Linux
+    distributions.
 
-    For PCLm output (used by Mopria and Wi-Fi Direct printers) QPDF of
-    at least version 7.0.0 is required.
+    If you use MuPDF as PDF renderer make sure to use at least version
+    1.15, as the older versions have bugs and so some files get not
+    printed correctly.
 
     For Apple Raster output (used by AirPrint printers) at least CUPS
     2.2.2 is required.
@@ -56,9 +57,10 @@ INTRODUCTION
     CUPS, this package, and Ghostscript contain some rudimentary
     printer drivers and especially the filters needed for driverless
     printing (currently PWG Raster, Apple Raster, PCLm, and PDF output
-    formats, for IPP Everywhere, AirPrint, Mopria, and Wi-Fi Direct
-    printers), see http://www.openprinting.org/drivers/ for a more
-    comprehensive set of printer drivers for Linux.
+    formats, for printers supporting IPP Everywhere, AirPrint, Wi-Fi
+    Direct, and other standards), see
+    http://www.openprinting.org/drivers/ for a more comprehensive set
+    of printer drivers for Linux.
 
     See
     
@@ -67,6 +69,10 @@ INTRODUCTION
     for information about the PDF-based printing workflow.
 
     Report bugs to
+
+    https://github.com/OpenPrinting/cups-filters/issues
+
+    or alternatively to
 
     https://bugs.linuxfoundation.org/
 
@@ -453,7 +459,7 @@ CUPS FILTERS FOR PDF AS STANDARD PRINT JOB FORMAT
 
     Here is documentation from the former CUPS add-on tarball with the filters
     for the PDF-based printing workflow: imagetopdf, texttopdf,
-    pdftopdf, pdftoraster, pdftoopvp, and pdftoijs
+    pdftopdf, and pdftoraster
 
     The original filters are from http://sourceforge.jp/projects/opfc/
 
@@ -716,7 +722,10 @@ output NEWLINE
 Thus, if you want to use both PDF filters and GS by single PPD file,
 what you should do is to add the following line in the PPD file;
 
-*pdftopdfJCLBegin: "pdftoopvp jobInfo:"
+*pdftopdfJCLBegin: "pdfto... jobInfo:"
+
+Replace "pdfto..." by the name of the actual filter to be called after
+pdftopdf.
 
 Note:
   If you specify JCLBegin, you have to specify JCLToPSInterpreter as well.
@@ -843,8 +852,53 @@ non-landscape pages are rotated instead.
 Note: Some pages might end up 180 degree rotated (instead of 0 degree).
 Those should probably be rotated manually before binding the pages together.
 
+3) Method of flattening interactive PDF forms and annotations.
+
+Some PDF files (like application forms) contain interactive forms
+which the user can fill in inside a PDF viewer like evince. The filled
+in data is not integrated in each page of the PDF file but stored in
+an extra layer. Due to this the data gets lost when applying
+manipulations like scaling or N-up to the pages. To prevent the loss
+of the data pdftopdf flattens the form before doing the
+manipulations. This means the PDF will be converted into a static PDF
+file with the data being integral part of the pages.
+
+The same flattening is needed for annotations in PDF files.
+
+By default the actual flattening work is done by QPDF, as QPDF is also
+doing everything else in pdftopdf. This way no external utilities need
+to be called and so extra piping between processes and extra PDF
+interpreter runs are avoided which makes the filtering process faster.
+
+As we did not test the new QPDF-based form-flattening with thousands
+of PDF files yet and it has not been available to actual users yet it
+is possible that there are still some bugs. To give users a
+possibility to work around possible bugs in QPDF's form flattening, we
+have introduced an option to get back to the old flattening by the
+external tools pdftocairo or Ghostscript.
+
+The selection of the method is done by the "pdftopdf-form-flattening"
+option, setting it to "auto", "qpdf", "pdftocairo", "ghostscript",
+"gs", "internal" or "external":
+
+Per-job:           lpr -o pdftopdf-form-flattening=pdftocairo ...
+Per-queue default: lpadmin -p printer -o pdftopdf-form-flattening-default=gs
+Remove default:    lpadmin -p printer -R pdftopdf-form-flattening-default
+
+By default, pdftopdf uses QPDF if the option is not supplied, also the
+settings "auto" and "internal" make QPDF being used. "external"
+auto-selects from the two external utilities, trying pdftocairo at
+first and on failure Ghostscript. If the selected utility fails, the
+form stays unflattened and so the filled in data will possibly not get
+printed.
+
 Native PDF Printer / JCL Support
 --------------------------------
+
+Note that for most modern native PDF printers JCL is not needed any
+more as they are controlled via IPP. For these the PPD files get
+auto-generated by the support of CUPS and cups-filters for driverless
+IPP printing.
 
 pdftopdf will emit JCL when provided with a PPD file that includes the
 "*JCLToPDFInterpreter:" keyword.
@@ -913,7 +967,7 @@ License
 
 pdftopdf is released under the MIT license.
 
-The required libqpdf is available under version 2 of the Artistic License,
+The required libqpdf is available under version 2.0 of the Apache License,
 e.g. here: https://github.com/qpdf/qpdf
 
 
@@ -974,8 +1028,15 @@ Further Infos
 Font embedding is handled by libfontembed in the filter/fontembed
 subdirectory.
 
-Please report all bugs to https://bugs.linuxfoundation.org/, product
-"OpenPrinting", component "cups-filters".
+Please report all bugs to
+
+https://github.com/OpenPrinting/cups-filters/issues
+
+or to
+
+https://bugs.linuxfoundation.org/
+
+(product "OpenPrinting", component "cups-filters").
 
 
 PDFTORASTER
@@ -994,9 +1055,10 @@ Encryption feature is not supported.
 
 2. LICENSE
 
-Almost source files are under MIT like license. However, "pdftoraster" links
-some "poppler" libraries, and these files are under GNU public license.
-See copyright notice of each file for details.
+Almost all source files are under MIT like license. However,
+"pdftoraster" links some "poppler" libraries, and these files are
+under GNU public license.  See copyright notice of each file for
+details.
 
 3. COMMAND LINE
 
@@ -1043,243 +1105,6 @@ created PDF data.
 "pdftoraster" creates temporally files if needed. Temporary files are created
 in the location specified by TMPDIR environment variable. Default location
 is "/tmp".
-
-
-PDFTOIJS
-========
-
-1. INTRODUCTION
-
-"pdftoijs" is a filter for CUPS. It reads PDF files, converts it
-and sends it to an IJS server.
-
-2. LICENSE
-
-Almost source files are under MIT like license. However, "pdftoijs" links
-some "poppler" libraries, and these files are under GNU public license.
-See copyright notice of each file for details.
-
-3. COMMAND LINE
-
-"pdftoijs" is a CUPS filter, and the command line arguments, environment
-variables and configuration files are in accordance with the CUPS filter
-interface.
-
-pdftoijs <job> <user> <title> <num-copies> <options> [<filename>]
-
-"pdftoijs" ignores <job> and <user>.
-<title> is appended into the PDF dictionary as /Title.
-<num-copies> specifies the number of document copies.
-<options> is a CUPS option list.
-<filename> is an input PDF file name.
-
-When omit the <filename>, "pdftoijs" reads a PDF file from the stdin,
-and save it as a temporary file.
-
-4. ENVIRONMENT VARIABLES
-
-This program refers the following environment variable;
-   PPD:  PPD file name of the printer.
-
-5. NEW PPD KEYWORDS
-
-*ijsServer : the ijsserver executable
-*ijsManufacturer, *ijsModel : as used by the ijs server
-*ijsColorspace : the desired output colorspace, one of
-                 'rgb'
-                 'cmyk' (availability depending on poppler compile-options)
-                 'white1', 'black1':  1-bit normal/inverted
-                 'white8', 'black8':  8-bit greyscale normal/inverted
-*ijsResolution [option]=[choice]: the desired output resolution e.g. "600 600"
-*ijsParams [option]=[choice]: custom ijs parameters, separated by ','
-                 (to escape: use \,)
-
-6. COMMAND OPTIONS
-
-(See CUPS documents for details.)
-
-ijsOutputFile : the destination file, stdout otherwise
-
-7. INFORMATION FOR DEVELOPERS
-
-Following information is for developers, not for driver users.
-
-7.1 Temporally files location
-
-"pdftoijs" creates temporary files if needed. Temporary files are created
-in the location specified by TMPDIR environment variable. Default location
-is "/tmp".
-
-
-PDFTOOPVP
-=========
-
-1. INTRODUCTION
-
-"pdftoopvp" is a CUPS filter which reads PDF file, renders pages and
-outputs PDL to a printer driver which is compliant with the OpenPrinting
-Vector Printer Driver Interface "opvp".
-
-2. CONFIGURATION
-
-"pdftoopvp" refers the poppler configuration file. Be aware that poppler
-uses "fontconfig" for its font configuration.
-
-3. JCL
-
-When "pdftoopvp" reads a PDF file from stdin, "pdftoopvp" handles the data
-prior to PDF header (%PDF ...) as JCL options. JCL options for "pdftoopvp"
-must begin with "pdftoopvp jobInfo:". "pdftoopvp" passes the option string
-just after ":" to the driver as the jobInfo option.
-
-4. COMMAND LINE
-
-"pdftoopvp" is a CUPS filter, and the command line arguments,
-environment variables and configuration files are in accordance with
-the CUPS filter interface.
-
-pdftoopvp <job> <user> <title> <num-copies> <options> [<filename>]
-
-"pdftoopvp" ignores <job>, <user>, <title> and <num-copies>.
-<options> is a CUPS option list.
-
-When omit the <filename>, "pdftoopvp" reads a PDF file from stdin,
-and save it as a temporary file.
-
-CUPS options defined in <options> are delimited by space. Boolean
-type CUPS option is defined only by the option key, and other type
-CUPS option are defined by pairs of key and value, <key>=<value>.
-
-5. COMMAND OPTIONS
-
-"pdftoopvp" accepts the following CUPS standard options;
-
-Resolution=<int>
-  Specifies a printer resolution in dpi.
-  When this option is omitted, the resolution is treated as 300dpi.
-  Horizontal and vertical resolution are treated as the same resolution.
-
-PageSize=<string>
-  Specifies a paper size by name defined in the PPD file.
-  This option is ignored when no PPD file is assigned for the printer
-  queue.
-
-"pdftoopvp" accepts the following original options;
-
-opvpDriver=<string>
-  Specifies a driver library name.
-
-opvpModel=<string>
-  Specifies a printer model name.
-
-opvpJobInfo=<string>
-  Specifies "jobInfo" printing options that are passed to the driver.
-  Printing options are overridden by JCL options.
-
-opvpDocInfo=<string>
-  Specifies "docInfo" document options that are passed to the driver.
-
-opvpPageInfo=<string>
-  Specifies "pageInfo" page options that are passed to the driver.
-
-pdftoopvpClipPathNotSaved (Boolean option)
-  Specifies that the driver cannot save clipping path operators in PDF.
-
-nopdftoopvpShearImage (Boolean option)
-  Specifies that the driver cannot rotate/shear images by CTM.
-
-nopdftoopvpMiterLimit (Boolean option)
-  Specifies that the driver does not support miter limit.
-  If the driver does not prepare the opvpSetMiterLimit function entry,
-  this option setting is ignored, and also miter limit is ignored.
-
-pdftoopvpIgnoreMiterLimit (Boolean option)
-  When nopdftoopvpMiterLimit option is set, pdftoopvp automatically
-  replace paths to multiple lines or drawing images. This option
-  specifies to avoid the path replacement even when nopdftoopvpMiterLimit
-  option is set.
-
-pdftoopvpMaxClipPathLength=<int>
-  Specifies the maximum number of clipping path points that the driver
-  supports. Default value is 2000 points.
-
-pdftoopvpMaxFillPathLength=<int>
-  Specifies the maximum number of fill path points that the driver supports.
-  Default value is 4000 points.
-
-nopdftoopvpLineStyle (Boolean option)
-  Specifies that the driver ignores the line style settings in PDF.
-  If the driver does not prepare the SetLineStyle , SetLineDash or
-  SetLineDashOffset function entry, this option setting is ignored, and
-  also line style, line dash and line dash offset are ignored.
-
-nopdftoopvpClipPath (Boolean option)
-  Specifies that the driver does not support clipping path.
-  If the driver does not prepare the opvpSetClipPath function entry, this
-  option is ignored, and also clip path setting is ignored.
-
-nopdftoopvpBitmapChar (Boolean option)
-  Specifies that the driver does not output characters as images.
-  Default setting is that "pdftoopvp" outputs small characters as images.
-
-pdftoopvpBitmapCharThreshold=<int>
-  Specifies the threshold value that "pdftoopvp" outputs characters as
-  images. Threshold value is defined as W x H where character's width
-  is given by W pixels and height is given by H pixels.
-  Default threshold value is 2000 points.
-
-nopdftoopvpImageMask (Boolean option)
-  Specifies that the driver does not support image mask.
-  If this option is set, "pdftoopvp" treats as the nopdftoopvpBitmapChar
-  option is given.
-
-6. PPD OPTIONS
-
-Following options can be defined in a PPD.
-
-Resolution=<int>
-PageSize=<string>
-opvpDriver=<string>
-opvpModel=<string>
-opvpJobInfo=<string>
-opvpDocInfo=<string>
-opvpPageInfo=<string>
-pdftoopvpClipPathNotSaved=True
-pdftoopvpShearImage=False
-pdftoopvpMiterLimit=False
-pdftoopvpIgnoreMiterLimit=True
-pdftoopvpMaxClipPathLength=<int>
-pdftoopvpMaxFillPathLength=<int>
-pdftoopvpLineStyle=False
-pdftoopvpClipPath=False
-pdftoopvpBitmapChar=False
-pdftoopvpBitmapCharThreshold=<int>
-pdftoopvpImageMask=False
-
-7. OPTIONS OVERRIDING RULE
-
-"jobInfo" printing options in a PPD is used as a initial "jobInfo" printing
-options. If opvpJobInfo option is given in the command line, precedent
-"jobInfo" printing options are overridden by the opvpJobInfo options.
-
-After the "jobInfo" printing options are overridden by the opvpJobInfo
-options, if JCL options are given, precedent "jobInfo" printing options are
-overridden by the options given by JCL options.
-
-8. INFORMATION FOR CUPS 1.1
-
-To use this program under CUPS 1.1, following lines must be defined
-in the CUPS's "mime.types" file.
-
-application/vnd.cups-pdf
-
-9. KNOWN PROBLEMS
-
-Problem:
-  When a page is rotated and a character is small, character might not be
-  rotated correctly. This problem is caused by free type library.
-Solution:
-  Define the nopdftoopvpBitmapChar to inhibit characters output as images.
 
 
 URFTOPDF
@@ -1586,7 +1411,7 @@ cups-filters also provides filters and drivers for braille
 embossers. It supports:
 
 - Text on all kinds of embossers with generic support
-- Text and graphics on the Index V3 embossers.
+- Text and graphics on the Index V3 embossers and above.
 
 This is configured in CUPS just like any printer. Options can then be configured
 in the standard printer panel, or passed as -o options to the lp command.
@@ -1605,10 +1430,33 @@ lp file.txt
 or even
 
 lp file.html
+lp file.odt
 lp file.doc
-lp file.pdf
 lp file.rtf
 lp file.docx
+lp file.pdf
+
+Important: it is really preferrable to directly print the document files
+themselves, and not a pdf output, or printing from the application (which
+would first convert to pdf). That way, the braille conversion will have the
+proper document structure (paragraphs, titles, footnotes, etc.) to produce good
+quality.
+
+
+--------------------
+Vector Image support
+--------------------
+
+Vector images can be embossed by converting them to braille dots.
+
+This needs the inkscape package installed. Various input formats are then
+supported: .svg, .fig, .wmf, .emf, .cgm, .cmx
+
+The conversion assumes that the input is black-on-white. If it is
+white-on-black, the -o Negate option can be used.
+
+This image support is preferred over the generic image support described below,
+which has to reconstruct lines to be embossed.
 
 
 -------------
@@ -1618,8 +1466,15 @@ Image support
 Images can be embossed by converting them to braille dots.
 
 The orientation of the image can be controlled. By default it will be rotate to
-portrait, i.e. it will be rotate by 90 degree if it was wider than high. Other
-rotation modes are provided.
+fit the image orientation, i.e. it will be rotate by 90 degree if it is wider
+than high and the paper is higher than wide, or if vice-versa. Other rotation
+modes are provided.
+
+By default, the image will be resized to fit the size of the paper. Disabling
+the resize (fitplot set to No) will crop the image to the paper size. This is
+useful for instance when a carefully-drawn image was designed especially for
+embossing, and thus its pixels should exactly match with braille dots. In such
+case, edge detection should very probably be disabled too.
 
 The image can be processed for edge detection. When no processing is done (edge
 detection is configured to "None"), the dark pixels are embossed if the Negate
@@ -1645,11 +1500,22 @@ lp file.jpg
 Here are complete examples for controlling the processing (all options can be
 omitted, the default values are shown here):
 
-lp -o "Edge=None Rotate=90> Negate" file.png
-lp -o "Edge=None Rotate=90> noNegate" file.png
+Emboss the image without edge detection, as black on white or white on black:
+
+lp -o "Edge=None" file.png
+lp -o "Edge=None Negate" file.png
+
+Emboss the image with edge detection, the default tuning parameters are set
+here:
+
 lp -o "Edge=Edge EdgeFactor=1" file.png
 lp -o "Edge=Canny CannyRadius=0 CannySigma=1 CannyLower=10 CannyUpper=30" file.png
 
+Emboss the image as it is, without any resize or edge detection, as black on
+white or white on black:
+
+lp -o "nofitplot Edge=None" file.png
+lp -o "nofitplot Edge=None Negate" file.png
 
 ------------------------
 Generic embosser support
@@ -1715,6 +1581,56 @@ Greek, with 2.5mm dot spacing and 5mm line spacing. All options can be omitted,
 the default values are shown here.
 
 lp -o "LibLouis=fr-fr-g1 LibLouis2=gr-gr-g1 TextDotDistance=250 LineSpacing=500" file.txt
+
+
+---------------------------------
+Reworking output before embossing
+---------------------------------
+
+One may want to check and modify the .brf or .ubrl output before sending it to
+the embosser.  This can be achieved by first generating the .brf file:
+
+    /usr/sbin/cupsfilter -m application/vnd.cups-brf -p /etc/cups/ppd/yourprinter.ppd yourdocument.txt > ~/test.brf
+
+One can choose a ppd file and additionally pass -o options to control the
+generated output. One can then modify the .brf file with a text editor. One can
+then emboss it:
+
+    lp -o document-format=application/vnd.cups-brf ~/test.brf
+
+
+The same can be achieved for images:
+
+    /usr/sbin/cupsfilter -m image/vnd.cups-ubrl -p /etc/cups/ppd/yourprinter.ppd yourimage.png > ~/test.ubrl
+
+    lp -o document-format=image/vnd.cups-ubrl ~/test.ubrl
+
+
+---------------
+BRF file output
+---------------
+
+One can generate BRF files by adding a virtual BRF printer.
+
+When creating it in the cups interface, choose the CUPS-BRF local printer,
+select the Generic maker, and choose the Generic Braille embosser model.
+
+Printing to the resulting printer will generate a .brf file in a BRF
+subdirectory of the home directory.
+
+
+----------------
+UBRL file output
+----------------
+
+One can generate Unicode braille files, not useful for embossing, but which can
+be easily looked at by sighted people to check for the output.
+
+In the cups interface, create a printer with the CUPS-BRF local printer,
+the Generic maker, and choose the Generic UBRL generator model.
+
+Printing to the resulting printer will generate a .brf file in a BRF
+subdirectory of the home directory.
 
 
 ----------------------------

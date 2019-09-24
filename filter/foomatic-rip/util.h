@@ -1,7 +1,7 @@
 /* util.h
  *
  * Copyright (C) 2008 Till Kamppeter <till.kamppeter@gmail.com>
- * Copyright (C) 2008 Lars Uebernickel <larsuebernickel@gmx.de>
+ * Copyright (C) 2008 Lars Karlitski (formerly Uebernickel) <lars@karlitski.net>
  *
  * This file is part of foomatic-rip.
  *
@@ -97,6 +97,11 @@ void escapechars(char *dest, size_t size, const char *src, const char *esc_chars
    returns a pointer to the position right after the last byte that has been copied
 */
 const char * strncpy_tochar(char *dest, const char *src, size_t max, const char *stopchars);
+
+/* "safe" versions of standard <cstdio> fwrite and fread that will cause the
+ * program to exit gracefully when a write/read fails */
+size_t fwrite_or_die(const void* ptr, size_t size, size_t count, FILE* stream);
+size_t fread_or_die(void* ptr, size_t size, size_t count, FILE* stream);
 
 /* 'paths' is a colon seperated list of paths (like $PATH) 
  * 'found_in' may be NULL if it is not needed */
