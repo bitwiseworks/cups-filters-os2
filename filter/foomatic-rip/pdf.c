@@ -1,7 +1,7 @@
 /* pdf.c
  *
  * Copyright (C) 2008 Till Kamppeter <till.kamppeter@gmail.com>
- * Copyright (C) 2008 Lars Uebernickel <larsuebernickel@gmx.de>
+ * Copyright (C) 2008 Lars Karlitski (formerly Uebernickel) <lars@karlitski.net>
  *
  * This file is part of foomatic-rip.
  *
@@ -47,16 +47,15 @@ static int pdf_count_pages(const char *filename)
     size_t bytes;
 
     snprintf(gscommand, CMDLINE_MAX, "%s -dNODISPLAY -q -c "
-	     "'/pdffile (%s) (r) file def pdfdict begin pdffile pdfopen begin "
-	     "(PageCount: ) print pdfpagecount == flush currentdict pdfclose "
-	     "end end quit'",
+	     "'/pdffile (%s) (r) file runpdfbegin (PageCount: ) print "
+	     "pdfpagecount = quit'",
 	     gspath, filename);
 
     FILE *pd = popen(gscommand, "r");
     if (!pd)
       rip_die(EXIT_STARVED, "Failed to execute ghostscript to determine number of input pages! rc=%d (%s)\n", errno, strerror(errno));
 
-    bytes = fread(output, 1, 31, pd);
+    bytes = fread_or_die(output, 1, 31, pd);
     pclose(pd);
 
     if (bytes <= 0 || sscanf(output, "PageCount: %d", &pagecount) < 1)
@@ -132,7 +131,7 @@ static int pdf_extract_pages(char filename[PATH_MAX],
     }
 
     snprintf(gscommand, CMDLINE_MAX, "%s -q -dNOPAUSE -dBATCH -dPARANOIDSAFER -dNOINTERPOLATE -dNOMEDIAATTRS"
-	     "-sDEVICE=pdfwrite %s %s %s %s",
+	     "-sDEVICE=pdfwrite -dShowAcroForm %s %s %s %s",
 	     gspath, filename_arg, first_arg, last_arg, pdffilename);
 
     FILE *pd = popen(gscommand, "r");
@@ -192,6 +191,8 @@ static int render_pages_with_ghostscript(dstr_t *cmd,
 
     dstrinsertf(cmd, end_gs_cmd, " %s ", filename);
 
+    dstrinsertf(cmd, start_gs_cmd + 2, " -dShowAcroForm ");
+    
     if (firstpage > 1)
     {
         if (lastpage >= firstpage)

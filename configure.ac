@@ -6,8 +6,8 @@ AC_PREREQ([2.65])
 # Version informations
 # ====================
 m4_define([cups_filters_version_major],[1])
-m4_define([cups_filters_version_minor],[17])
-m4_define([cups_filters_version_micro],[2])
+m4_define([cups_filters_version_minor],[25])
+m4_define([cups_filters_version_micro],[6])
 m4_define([cups_filters_version],[cups_filters_version_major.cups_filters_version_minor.cups_filters_version_micro])
 
 # =============
@@ -18,7 +18,7 @@ AC_CONFIG_MACRO_DIR([m4])
 m4_include([m4/ac_define_dir.m4])
 m4_include([m4/ax_compare_version.m4])
 m4_include([m4/basic-directories.m4])
-AM_INIT_AUTOMAKE([1.11 gnu dist-xz dist-bzip2])
+AM_INIT_AUTOMAKE([1.11 gnu dist-xz dist-bzip2 subdir-objects])
 AM_SILENT_RULES([yes])
 AC_LANG([C++])
 AC_CONFIG_HEADERS([config.h])
@@ -54,12 +54,18 @@ AC_PROG_CC
 AC_PROG_CXX
 AX_CXX_COMPILE_STDCXX([11],[noext],[mandatory])
 AM_PROG_CC_C_O
+AM_ICONV
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_LN_S
+AS_LN_SRF_PREPARE
+AC_PROG_LN_SRF
 AC_PROG_MAKE_SET
 AC_PROG_LIBTOOL
 PKG_PROG_PKG_CONFIG([0.20])
+
+AM_GNU_GETTEXT_VERSION([0.18.3])
+AM_GNU_GETTEXT([external])
 
 # ========================================
 # Specify the fontdir patch if not default
@@ -88,7 +94,7 @@ AS_IF([test "x$with_cups_config" != "xsystem"], [
 		AC_MSG_ERROR([Required cups-config is missing. Please install CUPS developer packages.])
 	])
 ])
-CUPS_CFLAGS=`$CUPSCONFIG --cflags`
+CUPS_CFLAGS=`$CUPSCONFIG --cflags`' -D_PPD_DEPRECATED=""'
 CUPS_LIBS=`$CUPSCONFIG --image --libs`
 CUPS_VERSION=`$CUPSCONFIG --version`
 AC_SUBST(CUPS_CFLAGS)
@@ -118,10 +124,11 @@ AC_ARG_ENABLE([driverless], [AS_HELP_STRING([--enable-driverless], [enable PPD g
         [enable_driverless="$enableval"],
         [enable_driverless=yes]
 )
-AX_COMPARE_VERSION([$CUPS_VERSION],[ge],[1.6], [
-	AM_CONDITIONAL([ENABLE_DRIVERLESS],
-	[test "x$enable_driverless" != "xno"])
+AX_COMPARE_VERSION([$CUPS_VERSION],[lt],[1.6], [
+	enable_driverless=no
 ])
+AM_CONDITIONAL([ENABLE_DRIVERLESS],
+[test "x$enable_driverless" != "xno"])
 
 APPLE_RASTER_FILTER=rastertopdf
 AX_COMPARE_VERSION([$CUPS_VERSION],[lt],[2.2.2], [
@@ -459,10 +466,9 @@ AS_IF([test x"$lcms2" = "xno"], [
 ])
 PKG_CHECK_MODULES([FREETYPE], [freetype2], [AC_DEFINE([HAVE_FREETYPE_H], [1], [Have FreeType2 include files])])
 PKG_CHECK_MODULES([FONTCONFIG], [fontconfig >= 2.0.0])
-PKG_CHECK_MODULES([IJS], [ijs], [have_ijs=yes], [have_ijs=no])
 PKG_CHECK_MODULES([ZLIB], [zlib])
 AC_DEFINE([HAVE_LIBZ], [], [Define that we use zlib])
-PKG_CHECK_MODULES([LIBQPDF], [libqpdf >= 3.0.2])
+PKG_CHECK_MODULES([LIBQPDF], [libqpdf >= 8.3.0])
 
 # ===============================
 # Check for PCLm printing support
@@ -471,13 +477,6 @@ AC_ARG_ENABLE([pclm], [AS_HELP_STRING([--enable-pclm], [enable PCLm printing.])]
 	[enable_pclm="$enableval"],
 	[enable_pclm=yes]
 )
-if test "x$enable_pclm" != "xno"; then
-	# Do we have QPDF 7.0.0 or newer?
-	AC_CHECK_HEADERS([qpdf/Pl_RunLength.hh],
-		[],
-		[enable_pclm=no]
-	)
-fi
 if test "x$enable_pclm" != "xno"; then
 	AC_DEFINE([QPDF_HAVE_PCLM], [1], [QPDF has PCLm support?])
 	QPDF_NO_PCLM=
@@ -495,7 +494,7 @@ AC_ARG_ENABLE(poppler, AS_HELP_STRING([--enable-poppler],[enable Poppler-based f
 	      enable_poppler=$enableval,enable_poppler=yes)
 AM_CONDITIONAL(ENABLE_POPPLER, test x$enable_poppler = xyes)
 if test x$enable_poppler = xyes; then
-	PKG_CHECK_MODULES([POPPLER], [poppler >= 0.18])
+	PKG_CHECK_MODULES([POPPLER], [poppler-cpp >= 0.19])
 	AC_CHECK_HEADER([poppler/cpp/poppler-version.h], [AC_DEFINE([HAVE_CPP_POPPLER_VERSION_H],,[Define if you have Poppler's "cpp/poppler-version.h" header file.])], [])
 fi
 
@@ -549,15 +548,6 @@ AC_ARG_ENABLE([ghostscript],
 	[enable_ghostscript="$enableval"],
 	[enable_ghostscript=yes]
 )
-AC_ARG_ENABLE([ijs],
-	[AS_HELP_STRING([--disable-ijs], [Disable filters using IJS.])],
-	[enable_ijs="$enableval"],
-	[enable_ijs=yes]
-)
-AS_IF([test "x$enable_ijs" = "xyes" -a "x$have_ijs" != "xyes"], [
-       AC_MSG_ERROR([IJS not found, but requested.])
-])
-AM_CONDITIONAL(ENABLE_IJS, test "x$enable_ijs" = "xyes")
 AC_ARG_WITH([pdftops],
 	[AS_HELP_STRING([--with-pdftops=value], [Set which pdftops to use (gs,pdftops,pdftocairo,acroread,mupdf,hybrid).])],
 	[with_pdftops="$withval"],
@@ -627,7 +617,7 @@ AS_IF([test "x$enable_ghostscript" != "xyes"], [
 	AC_DEFINE([HAVE_GHOSTSCRIPT], [], [Define that we provide ghostscript binary])
 	AS_IF([test x"$with_pdftops" = xgs], [AC_DEFINE_UNQUOTED([CUPS_PDFTOPS_RENDERER], [GS], [Define default renderer])])
 
-	AS_IF([test "xenable_gs_ps2write" = "xyes"], [
+	AS_IF([test x"$enable_gs_ps2write" = "xyes"], [
 		AC_DEFINE([HAVE_GHOSTSCRIPT_PS2WRITE], [], [gs supports ps2write])
 	])
 	AS_IF([test "x$cross_compiling" != "xyes"], [
@@ -668,7 +658,7 @@ AS_IF([test "x$with_pdftops_path" != "xsystem"], [
 	CUPS_PDFTOPS="$with_pdftops_path"
 ], [
 	AS_IF([test "x$cross_compiling" = "xyes"], [
-		CUPS_PDFTOPS="pdftops"
+		CUPS_PDFTOPS="/usr/bin/pdftops"
 	], [
 		AC_CHECK_PROG(CUPS_PDFTOPS, pdftops, /@unixroot/usr/bin/pdftops)
 	])
@@ -850,6 +840,10 @@ AC_CONFIG_FILES([
 	filter/braille/filters/cups-braille.sh
 	filter/braille/filters/imagetobrf
 	filter/braille/filters/texttobrf
+	filter/braille/filters/brftopagedbrf
+	filter/braille/filters/vectortopdf
+	filter/braille/filters/vectortobrf
+	filter/braille/filters/musicxmltobrf
 	filter/braille/filters/liblouis1.defs.gen
 	mime/cupsfilters.convs
 ])

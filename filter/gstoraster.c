@@ -39,6 +39,7 @@ MIT Open Source License  -  http://www.opensource.org/
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <fcntl.h>
 #include <cups/raster.h>
 #include <cupsfilters/colormanager.h>
@@ -76,29 +77,15 @@ static GsDocType
 parse_doc_type(FILE *fp)
 {
   char buf[5];
-  GsDocType doc_type;
-  char *rc;
 
   /* get the first few bytes of the file */
-  doc_type = GS_DOC_TYPE_UNKNOWN;
   rewind(fp);
-  rc = fgets(buf,sizeof(buf),fp);
-  if (rc == NULL)
-    goto out;
-
-  /* is PDF */
-  if (strncmp(buf,"%PDF",4) == 0) {
-    doc_type = GS_DOC_TYPE_PDF;
-    goto out;
+/* skip until PDF/PS start header */
+ while (fgets(buf,sizeof(buf),fp) != 0) {
+   if (strncmp(buf,"%PDF",4) == 0) return GS_DOC_TYPE_PDF;
+   if (strncmp(buf,"%!",2) == 0) return GS_DOC_TYPE_PS;
   }
-
-  /* is PS */
-  if (strncmp(buf,"%!",2) == 0) {
-    doc_type = GS_DOC_TYPE_PS;
-    goto out;
-  }
-out:
-  return doc_type;
+  return GS_DOC_TYPE_UNKNOWN;
 }
 
 static void
@@ -188,11 +175,7 @@ add_pdf_header_options(gs_page_header *h, cups_array_t *gs_args,
       cupsArrayAdd(gs_args, strdup("-dDuplex"));
     }
   }
-  if ((h->HWResolution[0] != 100) || (h->HWResolution[1] != 100))
-    snprintf(tmpstr, sizeof(tmpstr), "-r%dx%d",
-	     (unsigned)(h->HWResolution[0]), (unsigned)(h->HWResolution[1]));
-  else
-    snprintf(tmpstr, sizeof(tmpstr), "-r100x100");
+  snprintf(tmpstr, sizeof(tmpstr), "-r%dx%d",h->HWResolution[0], h->HWResolution[1]);
   cupsArrayAdd(gs_args, strdup(tmpstr));
   if (outformat == OUTPUT_FORMAT_RASTER) {
     if (h->InsertSheet) {
@@ -279,17 +262,9 @@ add_pdf_header_options(gs_page_header *h, cups_array_t *gs_args,
       cupsArrayAdd(gs_args, strdup("-dOutputFaceUp"));
     }
   }
-  if (h->PageSize[0] != 612)
-    snprintf(tmpstr, sizeof(tmpstr), "-dDEVICEWIDTHPOINTS=%d",
-	     (unsigned)(h->PageSize[0]));
-  else
-    snprintf(tmpstr, sizeof(tmpstr), "-dDEVICEWIDTHPOINTS=612");
+  snprintf(tmpstr, sizeof(tmpstr), "-dDEVICEWIDTHPOINTS=%d",h->PageSize[0]);
   cupsArrayAdd(gs_args, strdup(tmpstr));
-  if (h->PageSize[1] != 792)
-    snprintf(tmpstr, sizeof(tmpstr), "-dDEVICEHEIGHTPOINTS=%d",
-	     (unsigned)(h->PageSize[1]));
-  else
-    snprintf(tmpstr, sizeof(tmpstr), "-dDEVICEHEIGHTPOINTS=792");
+  snprintf(tmpstr, sizeof(tmpstr), "-dDEVICEHEIGHTPOINTS=%d",h->PageSize[1]);
   cupsArrayAdd(gs_args, strdup(tmpstr));
   if (outformat == OUTPUT_FORMAT_RASTER) {
     if (h->Separations) {
@@ -314,27 +289,11 @@ add_pdf_header_options(gs_page_header *h, cups_array_t *gs_args,
 	       (unsigned)(h->cupsMediaType));
       cupsArrayAdd(gs_args, strdup(tmpstr));
     }
-    if (h->cupsBitsPerColor != 1)
-      snprintf(tmpstr, sizeof(tmpstr), "-dcupsBitsPerColor=%d",
-	       (unsigned)(h->cupsBitsPerColor));
-    else
-      snprintf(tmpstr, sizeof(tmpstr), "-dcupsBitsPerColor=1");
+    snprintf(tmpstr, sizeof(tmpstr), "-dcupsBitsPerColor=%d",h->cupsBitsPerColor);
     cupsArrayAdd(gs_args, strdup(tmpstr));
-    if (h->cupsColorOrder != CUPS_ORDER_CHUNKED)
-      snprintf(tmpstr, sizeof(tmpstr), "-dcupsColorOrder=%d",
-	       (unsigned)(h->cupsColorOrder));
-    else
-      snprintf(tmpstr, sizeof(tmpstr), "-dcupsColorOrder=%d",
-	       CUPS_ORDER_CHUNKED);
+    snprintf(tmpstr, sizeof(tmpstr), "-dcupsColorOrder=%d",h->cupsColorOrder);
     cupsArrayAdd(gs_args, strdup(tmpstr));
-  }
-  if (outformat == OUTPUT_FORMAT_RASTER) {
-    if (h->cupsColorSpace != CUPS_CSPACE_K)
-      snprintf(tmpstr, sizeof(tmpstr), "-dcupsColorSpace=%d",
-	       (unsigned)(h->cupsColorSpace));
-    else
-      snprintf(tmpstr, sizeof(tmpstr), "-dcupsColorSpace=%d",
-	       CUPS_CSPACE_K);
+    snprintf(tmpstr, sizeof(tmpstr), "-dcupsColorSpace=%d",h->cupsColorSpace);
     cupsArrayAdd(gs_args, strdup(tmpstr));
   }
   
@@ -507,7 +466,7 @@ gs_spawn (const char *filename,
 
     /* Execute Ghostscript command line ... */
     execvpe(filename, gsargv, envp);
-    perror(filename);
+    fprintf(stderr, "ERROR: Unable to launch Ghostscript: %s: %s\n", filename, strerror(errno));
     goto out;
   }
 
@@ -777,6 +736,8 @@ main (int argc, char **argv, char *envp[])
   cupsArrayAdd(gs_args, strdup("-dNOMEDIAATTRS"));
   if (cm_disabled)
     cupsArrayAdd(gs_args, strdup("-dUseFastColor"));
+  if (doc_type == GS_DOC_TYPE_PDF)
+    cupsArrayAdd(gs_args, strdup("-dShowAcroForm"));
   cupsArrayAdd(gs_args, strdup("-sstdout=%stderr"));
   cupsArrayAdd(gs_args, strdup("-sOutputFile=%stdout"));
 

@@ -39,7 +39,7 @@
  * Local functions...
  */
 
-static void		flush_tile(cups_image_t *img);
+static int		flush_tile(cups_image_t *img);
 static cups_ib_t	*get_tile(cups_image_t *img, int x, int y);
 
 
@@ -618,7 +618,7 @@ cupsImageSetMaxTiles(
  * 'flush_tile()' - Flush the least-recently-used tile in the cache.
  */
 
-static void
+static int
 flush_tile(cups_image_t *img)		/* I - Image */
 {
   int		bpp;			/* Bytes per pixel */
@@ -626,12 +626,16 @@ flush_tile(cups_image_t *img)		/* I - Image */
 
 
   bpp  = cupsImageGetDepth(img);
+  if(img==NULL||img->first==NULL||img->first->tile==NULL)
+  {
+    return -1;
+  }
   tile = img->first->tile;
 
   if (!tile->dirty)
   {
     tile->ic = NULL;
-    return;
+    return 0;
   }
 
   if (img->cachefile < 0)
@@ -641,7 +645,7 @@ flush_tile(cups_image_t *img)		/* I - Image */
     {
       tile->ic    = NULL;
       tile->dirty = 0;
-      return;
+      return 0;
     }
 
     DEBUG_printf(("Created swap file \"%s\"...\n", img->cachename));
@@ -653,7 +657,7 @@ flush_tile(cups_image_t *img)		/* I - Image */
     {
       tile->ic    = NULL;
       tile->dirty = 0;
-      return;
+      return 0;
     }
   }
   else
@@ -662,7 +666,7 @@ flush_tile(cups_image_t *img)		/* I - Image */
     {
       tile->ic    = NULL;
       tile->dirty = 0;
-      return;
+      return 0;
     }
   }
 
@@ -672,6 +676,7 @@ flush_tile(cups_image_t *img)		/* I - Image */
 
   tile->ic    = NULL;
   tile->dirty = 0;
+  return 0;
 }
 
 
@@ -747,7 +752,11 @@ get_tile(cups_image_t *img,		/* I - Image */
     {
       DEBUG_printf(("Flushing old cache tile (%p)...\n", img->first));
 
-      flush_tile(img);
+      int res = flush_tile(img);
+      if(res)
+      {
+        return NULL;
+      }
       ic = img->first;
     }
 
@@ -811,3 +820,30 @@ get_tile(cups_image_t *img,		/* I - Image */
   return (ic->pixels + bpp * (y * CUPS_TILE_SIZE + x));
 }
 
+/*
+ * Crop a image.
+ * (posw,posh): Position of left corner
+ * (width,height): width and height of required image.
+ */
+cups_image_t* cupsImageCrop(cups_image_t* img,int posw,int posh,int width,int height)
+{
+  int image_width = cupsImageGetWidth(img);
+  cups_image_t* temp=calloc(sizeof(cups_image_t),1);
+  cups_ib_t *pixels=(cups_ib_t*)malloc(img->xsize*cupsImageGetDepth(img));
+  temp->cachefile = -1;
+  temp->max_ics = CUPS_TILE_MINIMUM;
+  temp->colorspace=img->colorspace;
+  temp->xppi = img->xppi;
+  temp->yppi = img->yppi;
+  temp->num_ics = 0;
+  temp->first =temp->last = NULL;
+  temp->tiles = NULL;
+  temp->xsize = width;
+  temp->ysize = height;
+  for(int i=posh;i<min(cupsImageGetHeight(img),posh+height);i++){
+    cupsImageGetRow(img,posw,i,min(width,image_width-posw),pixels);
+    _cupsImagePutRow(temp,0,i-posh,min(width,image_width-posw),pixels);
+  }
+  free(pixels);
+  return temp;
+}

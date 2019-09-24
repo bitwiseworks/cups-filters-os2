@@ -584,6 +584,8 @@ exec_filter(const char *filter,		/* I - Filter to execute */
 	dup2(fd, 2);
 	close(fd);
       }
+      else
+        close(fd);
       fcntl(2, F_SETFL, O_NDELAY);
     }
 
@@ -592,6 +594,8 @@ exec_filter(const char *filter,		/* I - Filter to execute */
       dup2(fd, 3);
       close(fd);
     }
+    else
+      close(fd);
     fcntl(3, F_SETFL, O_NDELAY);
 
     if ((fd = open("/dev/null", O_RDWR)) > 4)
@@ -599,6 +603,8 @@ exec_filter(const char *filter,		/* I - Filter to execute */
       dup2(fd, 4);
       close(fd);
     }
+    else
+      close(fd);
     fcntl(4, F_SETFL, O_NDELAY);
 
    /*
@@ -668,8 +674,11 @@ exec_filters(cups_array_t  *filters,	/* I - Array of filters to run */
   {
     next = (char *)cupsArrayNext(filters);
 
-    if (filter[0] == '/')
+    if (filter[0] == '/') {
       strncpy(program, filter, sizeof(program));
+      if (strlen(filter) > 1023)
+        program[1023] = '\0';
+    }
     else
     {
       if ((cups_serverbin = getenv("CUPS_SERVERBIN")) == NULL)

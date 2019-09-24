@@ -1,7 +1,7 @@
 /* foomaticrip.c
  *
  * Copyright (C) 2008 Till Kamppeter <till.kamppeter@gmail.com>
- * Copyright (C) 2008 Lars Uebernickel <larsuebernickel@gmx.de>
+ * Copyright (C) 2008 Lars Karlitski (formerly Uebernickel) <lars@karlitski.net>
  *
  * This file is part of foomatic-rip.
  *
@@ -526,7 +526,7 @@ void write_output(void *data, size_t len)
     while (isspace(*p++) && left-- > 0)
         ;
 
-    fwrite((void *)p, left, 1, postpipe);
+    fwrite_or_die((void *)p, left, 1, postpipe);
     fflush(postpipe);
 }
 
@@ -585,7 +585,7 @@ int print_file(const char *filename, int convert)
         }
     }
 
-    n = fread(buf, 1, sizeof(buf) - 1, file);
+    n = fread_or_die(buf, 1, sizeof(buf) - 1, file);
     buf[n] = '\0';
     type = guess_file_type(buf, n, &startpos);
     /* We do not use any JCL preceeded to the inputr data, as it is simply
@@ -667,7 +667,7 @@ int print_file(const char *filename, int convert)
 		else
 		  snprintf(pdf2ps_cmd, CMDLINE_MAX,
 			   "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
-			   "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE -dNOMEDIAATTRS %s 2>/dev/null || "
+			   "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE -dNOMEDIAATTRS -dShowAcroForm %s 2>/dev/null || "
 			   "pdftops -level2 -origpagesizes %s - 2>/dev/null",
 			   filename, filename);
 
@@ -677,9 +677,15 @@ int print_file(const char *filename, int convert)
                     rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
                             "Couldn't dup stdout of pdf-to-ps\n");
 
+                clearerr(stdin);
                 ret = print_file("<STDIN>", 0);
 
                 wait_for_process(renderer_pid);
+                if (in != NULL)
+                  fclose(in);
+                if (out != NULL)
+                  fclose(out);
+
                 return ret;
             }
 
@@ -697,6 +703,8 @@ int print_file(const char *filename, int convert)
 
         case UNKNOWN_FILE:
 	    _log("Cannot process \"%s\": Unknown filetype.\n", filename);
+	    if (file != NULL)
+	      fclose(file);
 	    return 0;
     }
 
@@ -739,7 +747,7 @@ int main(int argc, char** argv)
     const char* str;
     char *p, *filename;
     const char *path;
-    char tmp[1024], gstoraster[256];
+    char tmp[1024], profile_arg[256], gstoraster[512];
     int havefilter, havegstoraster;
     dstr_t *filelist;
     list_t * arglist;
@@ -765,6 +773,7 @@ int main(int argc, char** argv)
 
     signal(SIGTERM, signal_terminate);
     signal(SIGINT, signal_terminate);
+    signal(SIGPIPE, SIG_IGN);
 
     /* First try to find a config file in the CUS config directory, like
        /etc/cups/foomatic-rip.conf */
@@ -824,10 +833,14 @@ int main(int argc, char** argv)
 
     if (getenv("PPD")) {
         strncpy(job->ppdfile, getenv("PPD"), 2048);
+        if (strlen(getenv("PPD")) > 2047)
+          job->ppdfile[2047] = '\0';
         spooler = SPOOLER_CUPS;
-	if (getenv("CUPS_SERVERBIN"))
-	    strncpy(cupsfilterpath, getenv("CUPS_SERVERBIN"),
-		    sizeof(cupsfilterpath));
+    if (getenv("CUPS_SERVERBIN")) {
+        strncpy(cupsfilterpath, getenv("CUPS_SERVERBIN"), sizeof(cupsfilterpath));
+        if (strlen(getenv("CUPS_SERVERBIN")) > PATH_MAX-1)
+          cupsfilterpath[PATH_MAX-1] = '\0';
+        }
     }
 
     /* Check status of printer color management from the color manager */
@@ -847,10 +860,14 @@ int main(int argc, char** argv)
            allow duplicates, and use the last specified one */
             while ((str = arglist_get_value(arglist, "-p"))) {
                 strncpy(job->ppdfile, str, 2048);
+                if (strlen(str) > 2047)
+                  job->ppdfile[2047] = '\0';
                 arglist_remove(arglist, "-p");
             }
 	    while ((str = arglist_get_value(arglist, "--ppd"))) {
 	        strncpy(job->ppdfile, str, 2048);
+	        if (strlen(str) > 2047)
+	          job->ppdfile[2047] = '\0';
 	        arglist_remove(arglist, "--ppd");
 	    }
 
@@ -1011,7 +1028,7 @@ int main(int argc, char** argv)
             }
             if (!havegstoraster) {
                 const char **qualifier = NULL;
-                const char *icc_profile = NULL;
+                char *icc_profile = NULL;
 
                 if (!cm_disabled) {
                   qualifier = get_ppd_qualifier();
@@ -1031,12 +1048,13 @@ int main(int argc, char** argv)
                 /* ICC profile is specified for Ghostscript unless
                    "cm-calibration" option was passed in foomatic-rip */
                 if (icc_profile != NULL)
-                  snprintf(cmd, sizeof(cmd),
+                  snprintf(profile_arg, sizeof(profile_arg),
                            "-sOutputICCProfile='%s'", icc_profile);
                 else
-                  cmd[0] = '\0';
+                  profile_arg[0] = '\0';
 
-                snprintf(gstoraster, sizeof(gstoraster), "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOINTERPOLATE -dNOMEDIAATTRS -sDEVICE=cups %s -sOutputFile=- -", cmd);
+                snprintf(gstoraster, sizeof(gstoraster), "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOINTERPOLATE -dNOMEDIAATTRS -sDEVICE=cups -dShowAcroForm %s -sOutputFile=- -", profile_arg);
+                free(icc_profile);
             }
 
             /* build Ghostscript/CUPS driver command line */
@@ -1092,7 +1110,7 @@ int main(int argc, char** argv)
         dstrclear(postpipe);
 
     if (postpipe->len)
-        _log("Ouput will be redirected to:\n%s\n", postpipe);
+        _log("Output will be redirected to:\n%s\n", postpipe);
 
 
     filename = strtok_r(filelist->data, " ", &p);
@@ -1105,7 +1123,7 @@ int main(int argc, char** argv)
         if (dontparse == 2) {
             /* Raw queue, simply pass the input into the postpipe (or to STDOUT
                when there is no postpipe) */
-            _log("Raw printing, executing \"cat %s\"\n\n");
+            _log("Raw printing, executing \"cat %%s\"\n\n");
             snprintf(tmp, 1024, "cat %s", postpipe->data);
             run_system_process("raw-printer", tmp);
             continue;
