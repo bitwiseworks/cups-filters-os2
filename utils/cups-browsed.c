@@ -146,8 +146,13 @@ static int  ldap_rebind_proc(LDAP *RebindLDAPHandle,
 #define CUPS_DBUS_PATH "/org/cups/cupsd/Notifier"
 #define CUPS_DBUS_INTERFACE "org.cups.cupsd.Notifier"
 
+#ifdef __OS2__
+#define DEFAULT_CACHEDIR "/@unixroot/var/cache/cups"
+#define DEFAULT_LOGDIR "/@unixroot/var/log/cups"
+#else
 #define DEFAULT_CACHEDIR "/var/cache/cups"
 #define DEFAULT_LOGDIR "/var/log/cups"
+#endif
 #define LOCAL_DEFAULT_PRINTER_FILE "/cups-browsed-local-default-printer"
 #define REMOTE_DEFAULT_PRINTER_FILE "/cups-browsed-remote-default-printer"
 #define SAVE_OPTIONS_FILE "/cups-browsed-options-%s"
