@@ -905,7 +905,11 @@ void finish_page(struct pdf_info * info)
 
       // resolution is in dpi, so remove the last three characters from
       // resolution string to get resolution integer
-      unsigned resolution_integer = std::stoi(res.substr(0, res.size() - 3));
+#ifdef __OS2__
+      unsigned resolution_integer = atoi(res.substr(0, res.size() - 3).data());
+#else
+      unsigned resolution_integer = std:stoi(res.substr(0, res.size() - 3));
+#endif
       double d = (double)DEFAULT_PDF_UNIT / resolution_integer;
       content.append(QUtil::double_to_string(d) + " 0 0 " + QUtil::double_to_string(d) + " 0 0 cm\n");
       unsigned yAnchor = info->height;
