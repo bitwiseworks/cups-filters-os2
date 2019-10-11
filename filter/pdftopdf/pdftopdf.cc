@@ -22,6 +22,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#ifdef __OS2__
+#include <sys/socket.h>
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
+
 #include "pdftopdf_processor.h"
 #include "pdftopdf_jcl.h"
 
@@ -1158,7 +1163,11 @@ int main(int argc,char **argv)
       FILE *infile = NULL;
       if (argc == 7) {
 	/* We read from a named file */
+#ifdef __OS2__
+	infile = fopen(argv[6], "rb");
+#else
 	infile = fopen(argv[6], "r");
+#endif
       } else {
 	/* We read from a temporary file */
 	if (tmpfile) rewind(tmpfile);
