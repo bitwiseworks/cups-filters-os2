@@ -93,6 +93,12 @@ int main(int argc, char *argv[]) {
   umask(0077);
 
   /* Create BRF directory in $HOME */
+#ifdef __OS2__
+  char *home;
+  home = getenv("HOME");
+  if (home)
+    pw->pw_dir = home;
+#endif
   if (asprintf(&dir, "%s/BRF", pw->pw_dir) < 0) {
     fprintf(stderr, "ERROR: could not allocate memory\n");
     return CUPS_BACKEND_FAILED;
